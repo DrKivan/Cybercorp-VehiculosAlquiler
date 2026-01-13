@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { exportRentalsToExcel } from '../utils/excelExport';
 
 /**
  * Componentes UI Reutilizables
@@ -88,8 +89,7 @@ const Badge = ({ variant = "default", children }) => {
 
 // --- ICONOS SVG ---
 const Icons = {
-  Plus: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
-  MapPin: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  Plus: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,    Download: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,  MapPin: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
   Calendar: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
   Car: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 012-2v0a2 2 0 012 2v0" /></svg>,
   Search: (props) => <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
@@ -180,8 +180,20 @@ const MapPicker = ({ onConfirm, onCancel }) => {
 export const Preview = () => {
   // --- MOCK DATA INICIAL ---
   const [rentals, setRentals] = useState([
-    { id: 1024, clientId: 1, vehicleId: 1, event: "Supervisión", date: "2024-01-15", status: "rented", amount: 450 },
-    { id: 1023, clientId: 101, vehicleId: 2, event: "Matrimonio", date: "2024-01-14", status: "finished", amount: 300 },
+    { 
+      id: 1024, clientId: 1, vehicleId: 1, 
+      category: "Supervisión", eventName: "Visita de Obra", 
+      date: "2024-01-15", status: "rented", amount: 450,
+      startTime: "08:00", endTime: "17:00", baseRate: 50,
+      locationText: "Mina San Cristobal", locationCoords: null, driverId: "1"
+    },
+    { 
+      id: 1023, clientId: 101, vehicleId: 2, 
+      category: "Matrimonio", eventName: "Boda Juan y Ana",
+      date: "2024-01-14", status: "finished", amount: 300,
+      startTime: "14:00", endTime: "20:00", baseRate: 50,
+      locationText: "Salón Los Olivos", locationCoords: null, driverId: ""
+    },
   ]);
 
   const [clients, setClients] = useState([
@@ -259,11 +271,16 @@ export const Preview = () => {
       ...initialFormState,
       ...rental,
       clientId: rental.clientId,
-      isNewClient: false, // Al editar siempre iniciamos asumiendo cliente existe
-      // Recuperar datos guardados o usar defaults
+      isNewClient: false,
+      // Recuperar datos completos
       startTime: rental.startTime || "08:00", 
       endTime: rental.endTime || "17:00",
-      baseRate: rental.baseRate || 50
+      baseRate: rental.baseRate || 50,
+      category: rental.category || rental.event || "", // Compatibilidad
+      eventName: rental.eventName || "",
+      driverId: rental.driverId || "",
+      locationText: rental.locationText || "",
+      locationCoords: rental.locationCoords || null
     });
     setIsModalOpen(true);
   };
@@ -298,16 +315,18 @@ export const Preview = () => {
       id: formData.id || Date.now(), // ID nuevo o existente
       clientId: finalClientId,
       vehicleId: Number(formData.vehicleId),
-      event: formData.category || "General",
+      // Guardado completo de todos los campos del form
+      category: formData.category || "General",
+      eventName: formData.eventName || "",
       date: formData.date,
       status: formData.status,
       amount: formData.amount,
-      // Persistir datos de cálculo
       startTime: formData.startTime,
       endTime: formData.endTime,
       baseRate: formData.baseRate,
       locationCoords: formData.locationCoords,
-      locationText: formData.locationText
+      locationText: formData.locationText,
+      driverId: formData.driverId
     };
 
     if (formData.id) {
@@ -376,6 +395,9 @@ export const Preview = () => {
               <h2 className="text-lg font-bold text-gray-900">Alquileres Recientes</h2>
               <p className="text-sm text-gray-500">Gestión de contratos activos y reservas.</p>
             </div>
+            <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles)} variant="outline" icon={Icons.Download} className="mr-2">
+                Exportar Excel
+            </Button>
             <Button onClick={handleOpenNew} icon={Icons.Plus}>Nuevo Alquiler</Button>
           </div>
 
@@ -400,7 +422,12 @@ export const Preview = () => {
                       <td className="px-4 py-3 font-mono text-gray-500">#{r.id}</td>
                       <td className="px-4 py-3 font-medium">{getClientName(r.clientId)}</td>
                       <td className="px-4 py-3">{getVehicleName(r.vehicleId)}</td>
-                      <td className="px-4 py-3"><Badge variant="default">{r.event}</Badge></td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                            <Badge variant="default">{r.category || r.event}</Badge>
+                            {r.eventName && <span className="text-xs text-gray-400 mt-1">{r.eventName}</span>}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{r.date}</td>
                       <td className="px-4 py-3 font-semibold">S/ {r.amount}</td>
                       <td className="px-4 py-3">
@@ -588,6 +615,8 @@ export const Preview = () => {
                         <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">4</span>
                         Chofer
                       </h4>
+                        value={formData.driverId}
+                        onChange={e => setFormData({...formData, driverId: e.target.value})}
                       <Select 
                         label="Asignar Conductor"
                         options={[{ label: "Sin Chofer", value: "" }, { label: "Carlos Mamani", value: "1" }]} 
