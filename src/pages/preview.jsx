@@ -184,6 +184,7 @@ export const Preview = () => {
       id: 1024, clientId: 1, vehicleId: 1, 
       category: "Supervisión", eventName: "Visita de Obra", 
       date: "2024-01-15", status: "rented", amount: 450,
+      initialPayment: 150, pendingAmount: 300, paymentStatus: "partial",
       startTime: "08:00", endTime: "17:00", baseRate: 50,
       locationText: "Mina San Cristobal", locationCoords: null, driverId: "1"
     },
@@ -191,6 +192,7 @@ export const Preview = () => {
       id: 1023, clientId: 101, vehicleId: 2, 
       category: "Matrimonio", eventName: "Boda Juan y Ana",
       date: "2024-01-14", status: "finished", amount: 300,
+      initialPayment: 300, pendingAmount: 0, paymentStatus: "paid",
       startTime: "14:00", endTime: "20:00", baseRate: 50,
       locationText: "Salón Los Olivos", locationCoords: null, driverId: ""
     },
@@ -231,14 +233,20 @@ export const Preview = () => {
     endTime: "18:00",
     baseRate: 50, // Tarifa base editable
     amount: 0,
-    advance: "",
+    initialPayment: 0, // Pago Inicial
+    pendingAmount: 0, // Monto Pendiente (calculado)
+    paymentStatus: "pending", // pending, partial, paid
+    paymentHistory: [], // Array de transacciones: [{amount, date, time, type}, ...]
     status: "reserved"
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [newCategoryMode, setNewCategoryMode] = useState(false);
   const [tempCategory, setTempCategory] = useState("");
-
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [additionalPaymentAmount, setAdditionalPaymentAmount] = useState(0);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedRentalForPayment, setSelectedRentalForPayment] = useState(null);
   // --- CALCULADORA AUTOMÁTICA ---
   useEffect(() => {
     // Calculo automático del monto
@@ -253,9 +261,24 @@ export const Preview = () => {
       if (duration < 1) duration = 1;
       
       const total = Math.round(duration * formData.baseRate);
-      setFormData(prev => ({ ...prev, amount: total }));
+      
+      // Calcular monto pendiente
+      const initial = formData.initialPayment || 0;
+      const pending = Math.max(0, total - initial);
+      
+      // Determinar estado de pago
+      let paymentStatus = "pending";
+      if (initial > 0 && pending > 0) paymentStatus = "partial";
+      if (pending === 0 && initial > 0) paymentStatus = "paid";
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        amount: total,
+        pendingAmount: pending,
+        paymentStatus: paymentStatus
+      }));
     }
-  }, [formData.startTime, formData.endTime, formData.baseRate]);
+  }, [formData.startTime, formData.endTime, formData.baseRate, formData.initialPayment]);
 
 
   // --- HANDLERS ---
@@ -291,6 +314,61 @@ export const Preview = () => {
     }
   };
 
+  const handleOpenPaymentModal = (rental) => {
+    setSelectedRentalForPayment(rental);
+    setAdditionalPaymentAmount(0);
+    setPaymentModalOpen(true);
+  };
+
+  const handleAddPayment = () => {
+    if (additionalPaymentAmount <= 0) {
+      alert("Ingrese un monto válido");
+      return;
+    }
+
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0];
+
+    // Crear nueva transacción
+    const newTransaction = {
+      amount: additionalPaymentAmount,
+      date: dateStr,
+      time: timeStr,
+      type: "additional"
+    };
+
+    // Actualizar el alquiler con el nuevo pago
+    setRentals(prev => prev.map(r => {
+      if (r.id === selectedRentalForPayment.id) {
+        const updatedHistory = [...(r.paymentHistory || []), newTransaction];
+        const totalPaid = updatedHistory.reduce((sum, t) => sum + t.amount, 0);
+        const pending = Math.max(0, r.amount - totalPaid);
+        
+        let newPaymentStatus = "pending";
+        if (totalPaid > 0 && pending > 0) newPaymentStatus = "partial";
+        if (pending === 0 && totalPaid > 0) newPaymentStatus = "paid";
+
+        const updatedRental = {
+          ...r,
+          initialPayment: totalPaid,
+          pendingAmount: pending,
+          paymentStatus: newPaymentStatus,
+          paymentHistory: updatedHistory
+        };
+
+        // Actualizar selectedRentalForPayment para que el modal se refresque
+        setSelectedRentalForPayment(updatedRental);
+
+        return updatedRental;
+      }
+      return r;
+    }));
+
+    setAdditionalPaymentAmount(0);
+    alert(`Pago de S/ ${additionalPaymentAmount} registrado exitosamente`);
+  };
+
   const handleSave = () => {
     // Logica de Guardado (Create or Update)
     let finalClientId = formData.clientId;
@@ -311,6 +389,22 @@ export const Preview = () => {
 
     if (!formData.vehicleId) return alert("Seleccione un vehículo");
 
+    // Preparar historial de pagos
+    let paymentHistory = formData.paymentHistory || [];
+    
+    // Si es creación nueva (no update) y hay pago inicial, agregarlo al historial
+    if (!formData.id && formData.initialPayment > 0 && paymentHistory.length === 0) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().split(' ')[0];
+      paymentHistory = [{
+        amount: formData.initialPayment,
+        date: dateStr,
+        time: timeStr,
+        type: "initial"
+      }];
+    }
+
     const rentalData = {
       id: formData.id || Date.now(), // ID nuevo o existente
       clientId: finalClientId,
@@ -321,6 +415,10 @@ export const Preview = () => {
       date: formData.date,
       status: formData.status,
       amount: formData.amount,
+      initialPayment: formData.initialPayment || 0,
+      pendingAmount: formData.pendingAmount,
+      paymentStatus: formData.paymentStatus,
+      paymentHistory: paymentHistory,
       startTime: formData.startTime,
       endTime: formData.endTime,
       baseRate: formData.baseRate,
@@ -413,6 +511,7 @@ export const Preview = () => {
                     <th className="px-4 py-3">FECHA</th>
                     <th className="px-4 py-3">MONTO</th>
                     <th className="px-4 py-3">ESTADO</th>
+                    <th className="px-4 py-3">PAGO</th>
                     <th className="px-4 py-3 text-right">ACCIONES</th>
                   </tr>
                 </thead>
@@ -435,8 +534,50 @@ export const Preview = () => {
                         {r.status === 'finished' && <Badge variant="success">Finalizado</Badge>}
                         {r.status === 'reserved' && <Badge variant="warning">Reservado</Badge>}
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {r.paymentStatus === 'paid' && (
+                            <div className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded text-center">
+                              ✓ Pagado
+                            </div>
+                          )}
+                          {r.paymentStatus === 'partial' && (
+                            <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                              Pago: S/ {r.initialPayment || 0}
+                            </div>
+                          )}
+                          {r.paymentStatus === 'pending' && (
+                            <div className="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded text-center">
+                              Pendiente
+                            </div>
+                          )}
+                          {(r.paymentHistory && r.paymentHistory.length > 0) && (
+                            <button 
+                              onClick={() => handleOpenPaymentModal(r)}
+                              className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline"
+                              title={`${r.paymentHistory.length} transacción(es)`}
+                            >
+                              📋 Ver {r.paymentHistory.length} transacción(es)
+                            </button>
+                          )}
+                          {(r.paymentStatus === 'partial' || r.paymentStatus === 'pending') && (
+                            <div className="text-xs text-gray-600 px-2">
+                              Falta: S/ {r.pendingAmount || (r.amount - (r.initialPayment || 0))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2">
+                            {(r.paymentStatus === 'partial' || r.paymentStatus === 'pending') && (
+                              <button 
+                                onClick={() => handleOpenPaymentModal(r)} 
+                                className="text-green-600 hover:text-green-800 p-1 font-bold text-sm" 
+                                title="Completar Pago"
+                              >
+                                💳
+                              </button>
+                            )}
                             <button onClick={() => handleEdit(r)} className="text-blue-600 hover:text-blue-800 p-1" title="Editar"><Icons.Edit className="w-4 h-4"/></button>
                             <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:text-red-800 p-1" title="Eliminar"><Icons.Trash className="w-4 h-4"/></button>
                         </div>
@@ -444,12 +585,59 @@ export const Preview = () => {
                     </tr>
                   ))}
                   {rentals.length === 0 && (
-                      <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-400">No hay registros</td></tr>
+                      <tr><td colSpan="9" className="px-4 py-8 text-center text-gray-400">No hay registros</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </Card>
+
+          {/* SEGUIMIENTO Y RECOMENDACIONES DE PAGO */}
+          {rentals.filter(r => r.paymentStatus !== 'paid').length > 0 && (
+            <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                    <span className="text-2xl">💰</span>
+                    Seguimiento de Pagos Pendientes
+                  </h3>
+                  <div className="space-y-3">
+                    {rentals.filter(r => r.paymentStatus === 'pending').length > 0 && (
+                      <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded">
+                        <p className="text-sm font-bold text-red-900">
+                          ⚠ {rentals.filter(r => r.paymentStatus === 'pending').length} alquiler(es) sin pago inicial
+                        </p>
+                        <p className="text-xs text-red-700 mt-1">
+                          Monto total pendiente: <span className="font-bold">S/ {rentals.filter(r => r.paymentStatus === 'pending').reduce((sum, r) => sum + r.amount, 0)}</span>
+                        </p>
+                        <p className="text-xs text-red-700 mt-2">
+                          Recomendación: Contacte al cliente para confirmar la reserva con al menos un pago inicial.
+                        </p>
+                      </div>
+                    )}
+                    {rentals.filter(r => r.paymentStatus === 'partial').length > 0 && (
+                      <div className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded">
+                        <p className="text-sm font-bold text-amber-900">
+                          ⚙ {rentals.filter(r => r.paymentStatus === 'partial').length} alquiler(es) con pago parcial
+                        </p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          Monto total faltante: <span className="font-bold">S/ {rentals.filter(r => r.paymentStatus === 'partial').reduce((sum, r) => sum + (r.pendingAmount || 0), 0)}</span>
+                        </p>
+                        <p className="text-xs text-amber-700 mt-2">
+                          Recomendación: Envíe recordatorio de pago antes de la fecha del servicio.
+                        </p>
+                      </div>
+                    )}
+                    <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded">
+                      <p className="text-sm font-bold text-emerald-900">
+                        ✓ {rentals.filter(r => r.paymentStatus === 'paid').length} alquiler(es) pagados completamente
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
         </section>
       </main>
 
@@ -675,6 +863,52 @@ export const Preview = () => {
                       <p className="text-xs text-gray-500 text-right italic">Se calculó automáticamente según horas</p>
                     </div>
 
+                    <div className="space-y-2 pt-4">
+                      <Input 
+                        type="number" 
+                        label="Pago Inicial (Opcional)" 
+                        placeholder="0"
+                        value={formData.initialPayment || 0}
+                        onChange={e => setFormData({...formData, initialPayment: Math.max(0, Number(e.target.value))})}
+                      />
+                      <p className="text-xs text-gray-500">Adelanto que realiza el cliente. Si deja vacío será 0.</p>
+                    </div>
+
+                    {/* TRACKING DE PAGO */}
+                    <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-900 uppercase">Pendiente:</span>
+                        <span className="text-lg font-bold text-blue-700">S/ {formData.pendingAmount}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-blue-700 mb-1">
+                          <span>Progreso de Pago</span>
+                          <span>{Math.round((formData.initialPayment / formData.amount) * 100 || 0)}%</span>
+                        </div>
+                        <div className="w-full bg-blue-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full transition-all" 
+                            style={{ width: `${Math.min(100, (formData.initialPayment / formData.amount) * 100 || 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                      {formData.paymentStatus === 'paid' && (
+                        <div className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded text-center">
+                          ✓ PAGO COMPLETADO
+                        </div>
+                      )}
+                      {formData.paymentStatus === 'partial' && (
+                        <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded text-center">
+                          ⚠ PAGO PARCIAL - Falta: S/ {formData.pendingAmount}
+                        </div>
+                      )}
+                      {formData.paymentStatus === 'pending' && (
+                        <div className="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded text-center">
+                          ✕ SIN PAGO INICIAL - Pendiente: S/ {formData.pendingAmount}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="space-y-2">
                         <Select 
                             label="Estado Inicial" 
@@ -711,6 +945,122 @@ export const Preview = () => {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* MODAL DE COMPLETAR PAGO */}
+      {paymentModalOpen && selectedRentalForPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaymentModalOpen(false)}></div>
+          
+          <Card className="relative w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50">
+            <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span className="text-2xl">💰</span>
+                  Completar Pago
+                </h3>
+              </div>
+              <button onClick={() => setPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
+                <Icons.X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* INFORMACIÓN DEL ALQUILER */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Cliente</p>
+                    <p className="font-bold text-gray-900">{getClientName(selectedRentalForPayment.clientId)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-gray-600 uppercase">ID Contrato</p>
+                    <p className="font-mono text-gray-700">#{selectedRentalForPayment.id}</p>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Monto Total</p>
+                    <p className="font-bold text-lg text-gray-900">S/ {selectedRentalForPayment.amount}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-gray-600 uppercase">Pagado</p>
+                    <p className="font-bold text-lg text-emerald-700">S/ {selectedRentalForPayment.initialPayment || 0}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* HISTORIAL DE TRANSACCIONES */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-bold text-gray-900">Historial de Transacciones</h4>
+                {(selectedRentalForPayment.paymentHistory || []).length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-4">Sin registros de pago</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {(selectedRentalForPayment.paymentHistory || []).map((payment, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs bg-gray-50 p-3 rounded border border-gray-200">
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-900">
+                            {payment.type === 'initial' ? '💳 Pago Inicial' : '➕ Pago Adicional'}
+                          </p>
+                          <p className="text-gray-500">{payment.date} {payment.time}</p>
+                        </div>
+                        <p className="font-bold text-emerald-700">S/ {payment.amount}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* MONTO PENDIENTE Y FORMULARIO */}
+              {selectedRentalForPayment.paymentStatus !== 'paid' && (
+                <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-bold text-blue-900">Monto Pendiente:</p>
+                    <p className="text-2xl font-bold text-blue-700">S/ {selectedRentalForPayment.pendingAmount}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-700 uppercase">Monto a Pagar</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">S/</span>
+                      <input 
+                        type="number"
+                        placeholder={`Máximo: S/ ${selectedRentalForPayment.pendingAmount}`}
+                        value={additionalPaymentAmount}
+                        onChange={e => setAdditionalPaymentAmount(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Puede pagar parcialmente o completar el monto pendiente.
+                    </p>
+                  </div>
+
+                  <Button 
+                    variant="primary" 
+                    className="w-full py-3"
+                    onClick={handleAddPayment}
+                    disabled={additionalPaymentAmount <= 0 || additionalPaymentAmount > selectedRentalForPayment.pendingAmount}
+                  >
+                    ✓ Registrar Pago de S/ {additionalPaymentAmount || 0}
+                  </Button>
+                </div>
+              )}
+
+              {selectedRentalForPayment.paymentStatus === 'paid' && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+                  <p className="text-lg font-bold text-emerald-700">✓ Pago Completado</p>
+                  <p className="text-xs text-emerald-600 mt-1">Todo el monto ha sido pagado</p>
+                </div>
+              )}
+
+              <Button variant="outline" className="w-full" onClick={() => setPaymentModalOpen(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
 
