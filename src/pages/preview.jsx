@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { exportRentalsToExcel } from '../utils/excelExport';
+import { useSupabaseData } from '../hooks/useSupabaseData';
 
 /**
  * Componentes UI Reutilizables
@@ -178,42 +179,48 @@ const MapPicker = ({ onConfirm, onCancel }) => {
 };
 
 export const Preview = () => {
-  // --- MOCK DATA INICIAL ---
-  const [rentals, setRentals] = useState([
-    { 
-      id: 1024, clientId: 1, vehicleId: 1, 
-      category: "Supervisión", eventName: "Visita de Obra", 
-      date: "2024-01-15", status: "rented", amount: 450,
-      initialPayment: 150, pendingAmount: 300, paymentStatus: "partial",
-      startTime: "08:00", endTime: "17:00", baseRate: 50,
-      locationText: "Mina San Cristobal", locationCoords: null, driverId: "1"
-    },
-    { 
-      id: 1023, clientId: 101, vehicleId: 2, 
-      category: "Matrimonio", eventName: "Boda Juan y Ana",
-      date: "2024-01-14", status: "finished", amount: 300,
-      initialPayment: 300, pendingAmount: 0, paymentStatus: "paid",
-      startTime: "14:00", endTime: "20:00", baseRate: 50,
-      locationText: "Salón Los Olivos", locationCoords: null, driverId: ""
-    },
-  ]);
-
-  const [clients, setClients] = useState([
-    { id: 1, name: "Empresa Minera X", phone: "700123456" },
-    { id: 101, name: "Juan Pérez", phone: "700987654" }
-  ]);
-
-  const vehicles = [
-    { id: 1, name: "Toyota Hilux", plate: "V5A-992", color: "Blanco" },
-    { id: 2, name: "Hyundai H1", plate: "Z1Z-555", color: "Negro" },
-    { id: 3, name: "Nissan Versa", plate: "444-ABC", color: "Plata" }
-  ];
-
-  const [categories, setCategories] = useState(["Matrimonio", "Corporativo", "Turismo", "Graduación"]);
+  // --- CONEXIÓN CON SUPABASE ---
+  const {
+    rentals,
+    clients,
+    vehicles,
+    categories,
+    drivers,
+    loading,
+    error,
+    refresh,
+    createClient,
+    createVehicle,
+    createDriver,
+    createRental,
+    updateRental,
+    deleteRental,
+    addPayment,
+    getPaymentsByRental,
+    PAYMENT_TYPES,
+    createCategory,
+    getClientName,
+    getVehicleName,
+    getDriverName
+  } = useSupabaseData();
 
   // --- UI STATES ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  
+  // --- FILTROS Y BÚSQUEDA ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    status: '',
+    paymentStatus: '',
+    category: '',
+    driverId: ''
+  });
+  const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+  
+  // --- CALENDARIO ---
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
   
   // --- FORM STATE ---
   const initialFormState = {
@@ -226,30 +233,242 @@ export const Preview = () => {
     driverId: "", 
     category: "",
     eventName: "",
-    locationText: "",
-    locationCoords: null,
+    pickupLocation: "",
+    destinationLocation: "",
+    pickupCoords: null,
     date: new Date().toISOString().split('T')[0],
     startTime: "09:00",
     endTime: "18:00",
-    baseRate: 50, // Tarifa base editable
+    baseRate: 50,
     amount: 0,
-    initialPayment: 0, // Pago Inicial
-    pendingAmount: 0, // Monto Pendiente (calculado)
-    paymentStatus: "pending", // pending, partial, paid
-    paymentHistory: [], // Array de transacciones: [{amount, date, time, type}, ...]
     status: "reserved"
   };
 
   const [formData, setFormData] = useState(initialFormState);
   const [newCategoryMode, setNewCategoryMode] = useState(false);
   const [tempCategory, setTempCategory] = useState("");
+  const [newVehicleMode, setNewVehicleMode] = useState(false);
+  const [tempVehicle, setTempVehicle] = useState({ brand: "", model: "", size: "", plate: "" });
+  const [newDriverMode, setNewDriverMode] = useState(false);
+  const [tempDriver, setTempDriver] = useState({ name: "", phone: "", license: "" });
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [additionalPaymentAmount, setAdditionalPaymentAmount] = useState(0);
+  const [selectedPaymentType, setSelectedPaymentType] = useState('cash');
+  const [paymentReference, setPaymentReference] = useState('');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedRentalForPayment, setSelectedRentalForPayment] = useState(null);
+  const [rentalPayments, setRentalPayments] = useState([]);
+
+  // --- LÓGICA DE FILTRADO Y ORDENAMIENTO ---
+  const filteredAndSortedRentals = React.useMemo(() => {
+    let result = [...rentals];
+    
+    // Búsqueda por nombre de cliente o placa de vehículo
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(r => {
+        const clientName = getClientName(r.clientId).toLowerCase();
+        const vehicleName = getVehicleName(r.vehicleId).toLowerCase();
+        return clientName.includes(query) || vehicleName.includes(query);
+      });
+    }
+    
+    // Filtros por columna
+    if (columnFilters.status) {
+      result = result.filter(r => r.status === columnFilters.status);
+    }
+    if (columnFilters.paymentStatus) {
+      result = result.filter(r => r.paymentStatus === columnFilters.paymentStatus);
+    }
+    if (columnFilters.category) {
+      result = result.filter(r => r.category === columnFilters.category);
+    }
+    if (columnFilters.driverId) {
+      result = result.filter(r => String(r.driverId) === columnFilters.driverId);
+    }
+    // Filtro por fecha del calendario
+    if (selectedCalendarDate) {
+      result = result.filter(r => r.date === selectedCalendarDate);
+    }
+    
+    // Ordenamiento
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        
+        // Manejo especial para campos numéricos
+        if (['amount', 'id'].includes(sortConfig.key)) {
+          aVal = Number(aVal) || 0;
+          bVal = Number(bVal) || 0;
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return result;
+  }, [rentals, searchQuery, columnFilters, sortConfig, selectedCalendarDate, getClientName, getVehicleName]);
+
+  // Obtener valores únicos para filtros
+  const uniqueCategories = [...new Set(rentals.map(r => r.category).filter(Boolean))];
+  
+  // Obtener fechas con alquileres para el calendario
+  const rentalDatesSet = new Set(rentals.map(r => r.date).filter(Boolean));
+
+  // --- FUNCIONES DEL CALENDARIO ---
+  const getCalendarDays = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startPadding = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+    
+    const days = [];
+    
+    // Días del mes anterior (padding)
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startPadding - 1; i >= 0; i--) {
+      days.push({ day: prevMonthLastDay - i, isCurrentMonth: false, date: null });
+    }
+    
+    // Días del mes actual
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({
+        day: d,
+        isCurrentMonth: true,
+        date: dateStr,
+        hasRentals: rentalDatesSet.has(dateStr),
+        rentalCount: rentals.filter(r => r.date === dateStr).length
+      });
+    }
+    
+    // Días del siguiente mes (padding)
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push({ day: i, isCurrentMonth: false, date: null });
+    }
+    
+    return days;
+  };
+
+  const calendarDays = getCalendarDays(calendarMonth);
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  const navigateMonth = (delta) => {
+    setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  };
+
+  const handleCalendarDateClick = (dateStr) => {
+    if (selectedCalendarDate === dateStr) {
+      setSelectedCalendarDate(null); // Deseleccionar si ya está seleccionado
+    } else {
+      setSelectedCalendarDate(dateStr);
+    }
+  };
+
+  // --- ESTADÍSTICAS REALES DEL DASHBOARD ---
+  const dashboardStats = React.useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    
+    // Alquileres por estado
+    const reserved = rentals.filter(r => r.status === 'reserved').length;
+    const completed = rentals.filter(r => r.status === 'completed').length;
+    
+    // Pagos
+    const totalPending = rentals.filter(r => r.paymentStatus === 'pending').length;
+    const totalPartial = rentals.filter(r => r.paymentStatus === 'partial').length;
+    const totalPaid = rentals.filter(r => r.paymentStatus === 'paid').length;
+    
+    // Montos
+    const totalRevenue = rentals.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const totalCollected = rentals.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+    const totalPendingAmount = rentals.reduce((sum, r) => sum + (r.pendingAmount || 0), 0);
+    
+    // Este mes
+    const thisMonthRentals = rentals.filter(r => r.date && r.date.startsWith(thisMonth));
+    const thisMonthRevenue = thisMonthRentals.reduce((sum, r) => sum + (r.amount || 0), 0);
+    
+    // Hoy
+    const todayRentals = rentals.filter(r => r.date === today);
+    
+    return {
+      reserved,
+      completed,
+      totalPending,
+      totalPartial,
+      totalPaid,
+      totalRevenue,
+      totalCollected,
+      totalPendingAmount,
+      thisMonthRevenue,
+      thisMonthRentals: thisMonthRentals.length,
+      todayRentals: todayRentals.length,
+      totalRentals: rentals.length,
+      vehiclesInUse: [...new Set(rentals.filter(r => r.status === 'reserved').map(r => r.vehicleId))].length,
+      availableVehicles: vehicles.length - [...new Set(rentals.filter(r => r.status === 'reserved').map(r => r.vehicleId))].length
+    };
+  }, [rentals, vehicles]);
+
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setColumnFilters({ status: '', paymentStatus: '', category: '', driverId: '' });
+    setSelectedCalendarDate(null);
+  };
+
+  // --- EFECTO PARA AUTO-COMPLETAR ALQUILERES ---
+  // Verifica si los alquileres cumplen las condiciones para ser marcados como "completed"
+  useEffect(() => {
+    const checkAndCompleteRentals = async () => {
+      const now = new Date();
+      
+      for (const rental of rentals) {
+        // Solo procesar si está en estado "reserved" 
+        if (rental.status !== 'reserved') continue;
+        
+        // Verificar si el pago está completado
+        if (rental.paymentStatus !== 'paid') continue;
+        
+        // Verificar si la fecha y hora del evento ya pasaron
+        const rentalDate = new Date(rental.date);
+        const [endH, endM] = (rental.endTime || "23:59").split(':').map(Number);
+        rentalDate.setHours(endH, endM, 0, 0);
+        
+        if (now > rentalDate) {
+          // Ambas condiciones cumplidas: marcar como completado
+          try {
+            await updateRental(rental.id, { status: 'completed' });
+          } catch (err) {
+            console.error('Error al completar alquiler automáticamente:', err);
+          }
+        }
+      }
+    };
+    
+    // Ejecutar verificación al cargar y cada minuto
+    if (rentals.length > 0) {
+      checkAndCompleteRentals();
+    }
+    
+    const interval = setInterval(checkAndCompleteRentals, 60000); // Cada minuto
+    return () => clearInterval(interval);
+  }, [rentals, updateRental]);
+
   // --- CALCULADORA AUTOMÁTICA ---
   useEffect(() => {
-    // Calculo automático del monto
+    // Calculo automático del monto basado en horas
     if (formData.startTime && formData.endTime && formData.baseRate) {
       const [startH, startM] = formData.startTime.split(':').map(Number);
       const [endH, endM] = formData.endTime.split(':').map(Number);
@@ -262,23 +481,12 @@ export const Preview = () => {
       
       const total = Math.round(duration * formData.baseRate);
       
-      // Calcular monto pendiente
-      const initial = formData.initialPayment || 0;
-      const pending = Math.max(0, total - initial);
-      
-      // Determinar estado de pago
-      let paymentStatus = "pending";
-      if (initial > 0 && pending > 0) paymentStatus = "partial";
-      if (pending === 0 && initial > 0) paymentStatus = "paid";
-      
       setFormData(prev => ({ 
         ...prev, 
-        amount: total,
-        pendingAmount: pending,
-        paymentStatus: paymentStatus
+        amount: total
       }));
     }
-  }, [formData.startTime, formData.endTime, formData.baseRate, formData.initialPayment]);
+  }, [formData.startTime, formData.endTime, formData.baseRate]);
 
 
   // --- HANDLERS ---
@@ -299,160 +507,195 @@ export const Preview = () => {
       startTime: rental.startTime || "08:00", 
       endTime: rental.endTime || "17:00",
       baseRate: rental.baseRate || 50,
-      category: rental.category || rental.event || "", // Compatibilidad
+      category: rental.category || rental.event || "",
       eventName: rental.eventName || "",
       driverId: rental.driverId || "",
-      locationText: rental.locationText || "",
-      locationCoords: rental.locationCoords || null
+      pickupLocation: rental.pickupLocation || "A confirmar",
+      destinationLocation: rental.destinationLocation || "A confirmar",
+      pickupCoords: rental.pickupCoords || null
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("¿Seguro que desea eliminar este registro?")) {
-      setRentals(prev => prev.filter(r => r.id !== id));
+      try {
+        await deleteRental(id);
+      } catch (err) {
+        alert("Error al eliminar: " + err.message);
+      }
     }
   };
 
-  const handleOpenPaymentModal = (rental) => {
+  const handleOpenPaymentModal = async (rental) => {
     setSelectedRentalForPayment(rental);
     setAdditionalPaymentAmount(0);
+    setSelectedPaymentType('cash');
+    setPaymentReference('');
     setPaymentModalOpen(true);
+    
+    // Cargar historial de pagos
+    try {
+      const payments = await getPaymentsByRental(rental.id);
+      setRentalPayments(payments);
+    } catch (err) {
+      console.error('Error cargando pagos:', err);
+      setRentalPayments([]);
+    }
   };
 
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
     if (additionalPaymentAmount <= 0) {
       alert("Ingrese un monto válido");
       return;
     }
 
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0];
-
-    // Crear nueva transacción
-    const newTransaction = {
-      amount: additionalPaymentAmount,
-      date: dateStr,
-      time: timeStr,
-      type: "additional"
-    };
-
-    // Actualizar el alquiler con el nuevo pago
-    setRentals(prev => prev.map(r => {
-      if (r.id === selectedRentalForPayment.id) {
-        const updatedHistory = [...(r.paymentHistory || []), newTransaction];
-        const totalPaid = updatedHistory.reduce((sum, t) => sum + t.amount, 0);
-        const pending = Math.max(0, r.amount - totalPaid);
-        
-        let newPaymentStatus = "pending";
-        if (totalPaid > 0 && pending > 0) newPaymentStatus = "partial";
-        if (pending === 0 && totalPaid > 0) newPaymentStatus = "paid";
-
-        const updatedRental = {
-          ...r,
-          initialPayment: totalPaid,
-          pendingAmount: pending,
-          paymentStatus: newPaymentStatus,
-          paymentHistory: updatedHistory
-        };
-
-        // Actualizar selectedRentalForPayment para que el modal se refresque
-        setSelectedRentalForPayment(updatedRental);
-
-        return updatedRental;
-      }
-      return r;
-    }));
-
-    setAdditionalPaymentAmount(0);
-    alert(`Pago de S/ ${additionalPaymentAmount} registrado exitosamente`);
+    try {
+      const paymentTypeLabels = {
+        cash: 'Efectivo',
+        bank_transfer: 'Transferencia Bancaria',
+        qr: 'Pago QR',
+        other: 'Otro'
+      };
+      
+      const updatedRental = await addPayment(selectedRentalForPayment.id, {
+        amount: additionalPaymentAmount,
+        paymentType: selectedPaymentType,
+        paymentTypeLabel: paymentTypeLabels[selectedPaymentType],
+        reference: paymentReference
+      });
+      
+      setSelectedRentalForPayment(updatedRental);
+      setAdditionalPaymentAmount(0);
+      setPaymentReference('');
+      
+      // Recargar pagos
+      const payments = await getPaymentsByRental(selectedRentalForPayment.id);
+      setRentalPayments(payments);
+      
+      alert(`Pago de S/ ${additionalPaymentAmount} registrado exitosamente`);
+    } catch (err) {
+      alert("Error al registrar pago: " + err.message);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Logica de Guardado (Create or Update)
     let finalClientId = formData.clientId;
 
-    // 1. Crear Cliente si es nuevo
-    if (formData.isNewClient) {
-      if (!formData.newClientName) return alert("Ingrese nombre del cliente nuevo");
-      const newClient = {
-        id: Date.now(),
-        name: formData.newClientName,
-        phone: formData.newClientPhone
+    try {
+      // 1. Crear Cliente si es nuevo
+      if (formData.isNewClient) {
+        if (!formData.newClientName) return alert("Ingrese nombre del cliente nuevo");
+        const newClient = await createClient({
+          name: formData.newClientName,
+          phone: formData.newClientPhone
+        });
+        finalClientId = newClient.id;
+      } else {
+          if (!finalClientId) return alert("Seleccione un cliente");
+      }
+
+      if (!formData.vehicleId) return alert("Seleccione un vehículo");
+
+      const rentalData = {
+        clientId: finalClientId,
+        vehicleId: Number(formData.vehicleId),
+        category: formData.category || "General",
+        eventName: formData.eventName || "",
+        date: formData.date,
+        status: formData.status || "reserved",
+        amount: formData.amount,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        baseRate: formData.baseRate,
+        pickupLocation: formData.pickupLocation || "A confirmar",
+        destinationLocation: formData.destinationLocation || "A confirmar",
+        pickupCoords: formData.pickupCoords,
+        driverId: formData.driverId
       };
-      setClients([...clients, newClient]);
-      finalClientId = newClient.id;
-    } else {
-        if (!finalClientId) return alert("Seleccione un cliente");
+
+      if (formData.id) {
+        // Update
+        await updateRental(formData.id, rentalData);
+      } else {
+        // Create
+        await createRental(rentalData);
+      }
+
+      setIsModalOpen(false);
+    } catch (err) {
+      alert("Error al guardar: " + err.message);
     }
-
-    if (!formData.vehicleId) return alert("Seleccione un vehículo");
-
-    // Preparar historial de pagos
-    let paymentHistory = formData.paymentHistory || [];
-    
-    // Si es creación nueva (no update) y hay pago inicial, agregarlo al historial
-    if (!formData.id && formData.initialPayment > 0 && paymentHistory.length === 0) {
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const timeStr = now.toTimeString().split(' ')[0];
-      paymentHistory = [{
-        amount: formData.initialPayment,
-        date: dateStr,
-        time: timeStr,
-        type: "initial"
-      }];
-    }
-
-    const rentalData = {
-      id: formData.id || Date.now(), // ID nuevo o existente
-      clientId: finalClientId,
-      vehicleId: Number(formData.vehicleId),
-      // Guardado completo de todos los campos del form
-      category: formData.category || "General",
-      eventName: formData.eventName || "",
-      date: formData.date,
-      status: formData.status,
-      amount: formData.amount,
-      initialPayment: formData.initialPayment || 0,
-      pendingAmount: formData.pendingAmount,
-      paymentStatus: formData.paymentStatus,
-      paymentHistory: paymentHistory,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      baseRate: formData.baseRate,
-      locationCoords: formData.locationCoords,
-      locationText: formData.locationText,
-      driverId: formData.driverId
-    };
-
-    if (formData.id) {
-      // Update
-      setRentals(prev => prev.map(r => r.id === formData.id ? { ...r, ...rentalData } : r));
-    } else {
-      // Create
-      setRentals([rentalData, ...rentals]);
-    }
-
-    setIsModalOpen(false);
   };
 
-  const handleCreateCategory = () => {
+  const handleCreateCategory = async () => {
     if (tempCategory.trim()) {
-      setCategories([...categories, tempCategory]);
-      setFormData({...formData, category: tempCategory});
-      setNewCategoryMode(false);
-      setTempCategory("");
+      try {
+        await createCategory(tempCategory);
+        setFormData({...formData, category: tempCategory});
+        setNewCategoryMode(false);
+        setTempCategory("");
+      } catch (err) {
+        alert("Error al crear categoría: " + err.message);
+      }
     }
   };
 
-  // Helper para mostrar nombres en tabla
-  const getClientName = (id) => clients.find(c => c.id === id)?.name || "Desconocido";
-  const getVehicleName = (id) => {
-      const v = vehicles.find(v => v.id === id);
-      return v ? `${v.name} (${v.plate})` : "Desconocido";
+  const handleCreateVehicle = async () => {
+    if (!tempVehicle.brand.trim() || !tempVehicle.model.trim() || !tempVehicle.plate.trim()) {
+      alert("Ingrese marca, modelo y placa del vehículo");
+      return;
+    }
+    try {
+      const newVehicle = await createVehicle(tempVehicle);
+      setFormData({...formData, vehicleId: newVehicle.id});
+      setNewVehicleMode(false);
+      setTempVehicle({ brand: "", model: "", size: "", plate: "" });
+    } catch (err) {
+      alert("Error al crear vehículo: " + err.message);
+    }
   };
+
+  const handleCreateDriver = async () => {
+    if (!tempDriver.name.trim()) {
+      alert("Ingrese el nombre del conductor");
+      return;
+    }
+    try {
+      const newDriver = await createDriver(tempDriver);
+      setFormData({...formData, driverId: newDriver.id});
+      setNewDriverMode(false);
+      setTempDriver({ name: "", phone: "", license: "" });
+    } catch (err) {
+      alert("Error al crear conductor: " + err.message);
+    }
+  };
+
+  // Mostrar estado de carga
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar error si hay
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center bg-red-50 p-6 rounded-lg border border-red-200">
+          <p className="text-red-600 font-bold mb-2">Error al cargar datos</p>
+          <p className="text-red-500 text-sm mb-4">{error}</p>
+          <Button variant="primary" onClick={refresh}>Reintentar</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-orange-100">
@@ -468,7 +711,6 @@ export const Preview = () => {
           </h1>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="outline" className="hidden sm:flex" icon={Icons.Search}>Buscar contrato...</Button>
           <div className="h-9 w-9 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-700 font-bold">AD</div>
         </div>
       </header>
@@ -476,65 +718,308 @@ export const Preview = () => {
       {/* MAIN CONTENT */}
       <main className="p-6 max-w-7xl mx-auto space-y-6">
         
-        {/* KPI */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {["Disponibles: 12", "En Renta: 5", "Mantenimiento: 2", "Reservados: 3"].map((stat, i) => (
-            <Card key={i} className="p-4 flex flex-col border-l-4 border-l-orange-500 shadow-sm">
-               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Estado de Flota</span>
-               <span className="text-xl font-bold text-gray-800">{stat}</span>
-            </Card>
-          ))}
+        {/* KPI DASHBOARD - DATOS REALES */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="p-4 border-l-4 border-l-emerald-500">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Vehículos Disponibles</span>
+            <div className="flex items-end justify-between mt-2">
+              <span className="text-3xl font-bold text-emerald-700">{dashboardStats.availableVehicles}</span>
+              <span className="text-xs text-gray-400">de {vehicles.length} total</span>
+            </div>
+          </Card>
+          <Card className="p-4 border-l-4 border-l-blue-500">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">En Alquiler Activo</span>
+            <div className="flex items-end justify-between mt-2">
+              <span className="text-3xl font-bold text-blue-700">{dashboardStats.reserved}</span>
+              <span className="text-xs text-gray-400">{dashboardStats.vehiclesInUse} vehículos</span>
+            </div>
+          </Card>
+          <Card className="p-4 border-l-4 border-l-amber-500">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Pagos Pendientes</span>
+            <div className="flex items-end justify-between mt-2">
+              <span className="text-3xl font-bold text-amber-700">S/ {dashboardStats.totalPendingAmount.toLocaleString()}</span>
+              <span className="text-xs text-gray-400">{dashboardStats.totalPending + dashboardStats.totalPartial} alquileres</span>
+            </div>
+          </Card>
+          <Card className="p-4 border-l-4 border-l-purple-500">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Ingresos del Mes</span>
+            <div className="flex items-end justify-between mt-2">
+              <span className="text-3xl font-bold text-purple-700">S/ {dashboardStats.thisMonthRevenue.toLocaleString()}</span>
+              <span className="text-xs text-gray-400">{dashboardStats.thisMonthRentals} alquileres</span>
+            </div>
+          </Card>
+        </div>
+
+        {/* RESUMEN RÁPIDO */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Mini Stats */}
+          <Card className="p-4 col-span-1 lg:col-span-2">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Resumen General</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalRentals}</p>
+                <p className="text-xs text-gray-500">Total Alquileres</p>
+              </div>
+              <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                <p className="text-2xl font-bold text-emerald-700">{dashboardStats.completed}</p>
+                <p className="text-xs text-emerald-600">Completados</p>
+              </div>
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <p className="text-2xl font-bold text-blue-700">{dashboardStats.totalPaid}</p>
+                <p className="text-xs text-blue-600">Pagos Completos</p>
+              </div>
+              <div className="text-center p-3 bg-orange-50 rounded-lg">
+                <p className="text-2xl font-bold text-orange-700">{dashboardStats.todayRentals}</p>
+                <p className="text-xs text-orange-600">Hoy</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Total Facturado:</span>
+                <span className="font-bold text-gray-900">S/ {dashboardStats.totalRevenue.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span className="text-gray-500">Total Cobrado:</span>
+                <span className="font-bold text-emerald-700">S/ {dashboardStats.totalCollected.toLocaleString()}</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* CALENDARIO INTERACTIVO */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Icons.Calendar className="w-4 h-4" /> Calendario
+              </h3>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => navigateMonth(-1)} 
+                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                >◀</button>
+                <span className="text-sm font-semibold px-2">
+                  {monthNames[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+                </span>
+                <button 
+                  onClick={() => navigateMonth(1)} 
+                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                >▶</button>
+              </div>
+            </div>
+            
+            {/* Días de la semana */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'].map(d => (
+                <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+            
+            {/* Días del mes */}
+            <div className="grid grid-cols-7 gap-1">
+              {calendarDays.map((d, i) => {
+                const isToday = d.date === new Date().toISOString().split('T')[0];
+                const isSelected = d.date === selectedCalendarDate;
+                
+                return (
+                  <button
+                    key={i}
+                    onClick={() => d.isCurrentMonth && d.date && handleCalendarDateClick(d.date)}
+                    disabled={!d.isCurrentMonth}
+                    className={`
+                      relative text-xs p-1.5 rounded transition-all
+                      ${!d.isCurrentMonth ? 'text-gray-300 cursor-default' : 'hover:bg-gray-100 cursor-pointer'}
+                      ${isToday ? 'ring-2 ring-orange-400 ring-offset-1' : ''}
+                      ${isSelected ? 'bg-orange-600 text-white hover:bg-orange-700' : ''}
+                      ${d.hasRentals && !isSelected ? 'bg-blue-100 text-blue-800 font-bold' : ''}
+                    `}
+                    title={d.hasRentals ? `${d.rentalCount} alquiler(es)` : ''}
+                  >
+                    {d.day}
+                    {d.hasRentals && !isSelected && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full"></span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            
+            {/* Leyenda */}
+            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-3 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 bg-blue-100 rounded"></span> Con alquileres
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 ring-2 ring-orange-400 rounded"></span> Hoy
+              </span>
+              {selectedCalendarDate && (
+                <button 
+                  onClick={() => setSelectedCalendarDate(null)}
+                  className="text-red-600 hover:underline ml-auto"
+                >
+                  Quitar filtro: {selectedCalendarDate}
+                </button>
+              )}
+            </div>
+          </Card>
         </div>
 
         {/* RENTALS TABLE */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Alquileres Recientes</h2>
               <p className="text-sm text-gray-500">Gestión de contratos activos y reservas.</p>
             </div>
-            <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles)} variant="outline" icon={Icons.Download} className="mr-2">
-                Exportar Excel
-            </Button>
-            <Button onClick={handleOpenNew} icon={Icons.Plus}>Nuevo Alquiler</Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles)} variant="outline" icon={Icons.Download}>
+                  Exportar Excel
+              </Button>
+              <Button onClick={handleOpenNew} icon={Icons.Plus}>Nuevo Alquiler</Button>
+            </div>
           </div>
+
+          {/* BARRA DE BÚSQUEDA Y FILTROS */}
+          <Card className="p-4">
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Buscador principal */}
+              <div className="flex-1 min-w-[250px]">
+                <Input 
+                  label="Buscar por cliente o placa"
+                  icon={Icons.Search}
+                  placeholder="Nombre del cliente o placa del vehículo..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              {/* Filtro Estado */}
+              <div className="w-40">
+                <Select
+                  label="Estado"
+                  value={columnFilters.status}
+                  onChange={e => setColumnFilters(prev => ({...prev, status: e.target.value}))}
+                  options={[
+                    { value: 'reserved', label: 'Reservado' },
+                    { value: 'completed', label: 'Completado' }
+                  ]}
+                />
+              </div>
+              
+              {/* Filtro Pago */}
+              <div className="w-40">
+                <Select
+                  label="Pago"
+                  value={columnFilters.paymentStatus}
+                  onChange={e => setColumnFilters(prev => ({...prev, paymentStatus: e.target.value}))}
+                  options={[
+                    { value: 'paid', label: 'Pagado' },
+                    { value: 'partial', label: 'Parcial' },
+                    { value: 'pending', label: 'Pendiente' }
+                  ]}
+                />
+              </div>
+              
+              {/* Filtro Categoría */}
+              <div className="w-40">
+                <Select
+                  label="Categoría"
+                  value={columnFilters.category}
+                  onChange={e => setColumnFilters(prev => ({...prev, category: e.target.value}))}
+                  options={uniqueCategories.map(c => ({ value: c, label: c }))}
+                />
+              </div>
+
+              {/* Filtro Conductor */}
+              <div className="w-44">
+                <Select
+                  label="Conductor"
+                  value={columnFilters.driverId}
+                  onChange={e => setColumnFilters(prev => ({...prev, driverId: e.target.value}))}
+                  options={drivers.map(d => ({ value: String(d.id), label: d.name }))}
+                />
+              </div>
+
+              {/* Botón limpiar filtros */}
+              {(searchQuery || Object.values(columnFilters).some(v => v) || selectedCalendarDate) && (
+                <Button variant="ghost" onClick={clearFilters} className="text-red-600 hover:text-red-800">
+                  <Icons.X className="w-4 h-4 mr-1" /> Limpiar
+                </Button>
+              )}
+            </div>
+            
+            {/* Indicador de resultados */}
+            <div className="mt-3 text-xs text-gray-500">
+              Mostrando {filteredAndSortedRentals.length} de {rentals.length} registros
+              {(searchQuery || Object.values(columnFilters).some(v => v) || selectedCalendarDate) && (
+                <span className="ml-2 text-orange-600 font-semibold">
+                  (filtrado{selectedCalendarDate ? ` por ${selectedCalendarDate}` : ''})
+                </span>
+              )}
+            </div>
+          </Card>
 
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200 font-medium text-gray-600">
                   <tr>
-                    <th className="px-4 py-3">ID</th>
-                    <th className="px-4 py-3">CLIENTE</th>
-                    <th className="px-4 py-3">VEHÍCULO</th>
-                    <th className="px-4 py-3">EVENTO</th>
-                    <th className="px-4 py-3">FECHA</th>
-                    <th className="px-4 py-3">MONTO</th>
-                    <th className="px-4 py-3">ESTADO</th>
-                    <th className="px-4 py-3">PAGO</th>
-                    <th className="px-4 py-3 text-right">ACCIONES</th>
+                    <th className="px-3 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('id')}>
+                      ID {sortConfig.key === 'id' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="px-3 py-3">CLIENTE</th>
+                    <th className="px-3 py-3">VEHÍCULO</th>
+                    <th className="px-3 py-3">CONDUCTOR</th>
+                    <th className="px-3 py-3">RECOGIDA</th>
+                    <th className="px-3 py-3">DESTINO</th>
+                    <th className="px-3 py-3">EVENTO</th>
+                    <th className="px-3 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date')}>
+                      FECHA {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="px-3 py-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('amount')}>
+                      MONTO {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="px-3 py-3">ESTADO</th>
+                    <th className="px-3 py-3">PAGO</th>
+                    <th className="px-3 py-3 text-right">ACCIONES</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {rentals.map((r) => (
+                  {filteredAndSortedRentals.map((r) => (
                     <tr key={r.id} className="hover:bg-orange-50/30 transition-colors group">
-                      <td className="px-4 py-3 font-mono text-gray-500">#{r.id}</td>
-                      <td className="px-4 py-3 font-medium">{getClientName(r.clientId)}</td>
-                      <td className="px-4 py-3">{getVehicleName(r.vehicleId)}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 font-mono text-gray-500">#{r.id}</td>
+                      <td className="px-3 py-3 font-medium">{getClientName(r.clientId)}</td>
+                      <td className="px-3 py-3 text-xs">{getVehicleName(r.vehicleId)}</td>
+                      <td className="px-3 py-3">
+                        {r.driverId ? (
+                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                            {getDriverName(r.driverId)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Sin asignar</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-xs text-gray-600 max-w-[120px] truncate block" title={r.pickupLocation}>
+                          📍 {r.pickupLocation || 'A confirmar'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-xs text-gray-600 max-w-[120px] truncate block" title={r.destinationLocation}>
+                          🏁 {r.destinationLocation || 'A confirmar'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
                         <div className="flex flex-col">
                             <Badge variant="default">{r.category || r.event}</Badge>
                             {r.eventName && <span className="text-xs text-gray-400 mt-1">{r.eventName}</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{r.date}</td>
-                      <td className="px-4 py-3 font-semibold">S/ {r.amount}</td>
-                      <td className="px-4 py-3">
-                        {r.status === 'rented' && <Badge variant="info">En Curso</Badge>}
-                        {r.status === 'finished' && <Badge variant="success">Finalizado</Badge>}
+                      <td className="px-3 py-3 text-gray-600 text-xs">{r.date}</td>
+                      <td className="px-3 py-3 font-semibold">S/ {r.amount}</td>
+                      <td className="px-3 py-3">
+                        {r.status === 'completed' && <Badge variant="success">Completado</Badge>}
                         {r.status === 'reserved' && <Badge variant="warning">Reservado</Badge>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <div className="flex flex-col gap-1">
                           {r.paymentStatus === 'paid' && (
                             <div className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded text-center">
@@ -543,7 +1028,7 @@ export const Preview = () => {
                           )}
                           {r.paymentStatus === 'partial' && (
                             <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
-                              Pago: S/ {r.initialPayment || 0}
+                              Pago: S/ {r.totalPaid || 0}
                             </div>
                           )}
                           {r.paymentStatus === 'pending' && (
@@ -551,24 +1036,23 @@ export const Preview = () => {
                               Pendiente
                             </div>
                           )}
-                          {(r.paymentHistory && r.paymentHistory.length > 0) && (
-                            <button 
-                              onClick={() => handleOpenPaymentModal(r)}
-                              className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline"
-                              title={`${r.paymentHistory.length} transacción(es)`}
-                            >
-                              📋 Ver {r.paymentHistory.length} transacción(es)
-                            </button>
-                          )}
+                          {/* Botón para ver historial de transacciones - disponible siempre */}
+                          <button 
+                            onClick={() => handleOpenPaymentModal(r)}
+                            className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline"
+                            title="Ver historial de transacciones"
+                          >
+                            📋 Ver historial
+                          </button>
                           {(r.paymentStatus === 'partial' || r.paymentStatus === 'pending') && (
-                            <div className="text-xs text-gray-600 px-2">
-                              Falta: S/ {r.pendingAmount || (r.amount - (r.initialPayment || 0))}
+                            <div className="text-xs text-gray-600">
+                              Falta: S/ {r.pendingAmount || (r.amount - (r.totalPaid || 0))}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-3 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
                             {(r.paymentStatus === 'partial' || r.paymentStatus === 'pending') && (
                               <button 
                                 onClick={() => handleOpenPaymentModal(r)} 
@@ -584,8 +1068,10 @@ export const Preview = () => {
                       </td>
                     </tr>
                   ))}
-                  {rentals.length === 0 && (
-                      <tr><td colSpan="9" className="px-4 py-8 text-center text-gray-400">No hay registros</td></tr>
+                  {filteredAndSortedRentals.length === 0 && (
+                      <tr><td colSpan="12" className="px-4 py-8 text-center text-gray-400">
+                        {rentals.length === 0 ? 'No hay registros' : 'No se encontraron resultados con los filtros aplicados'}
+                      </td></tr>
                   )}
                 </tbody>
               </table>
@@ -757,27 +1243,36 @@ export const Preview = () => {
                   </div>
 
                   <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 block">Ubicación</label>
-                    <div className="grid grid-cols-1 gap-3">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3 block">Ubicaciones</label>
+                    <div className="grid grid-cols-1 gap-4">
                        <Input 
-                        placeholder="Calle / Avenida / Referencia" 
+                        label="Lugar de Recogida"
+                        placeholder="Dirección o 'A confirmar'" 
                         icon={Icons.MapPin} 
-                        value={formData.locationText}
-                        onChange={e => setFormData({...formData, locationText: e.target.value})}
+                        value={formData.pickupLocation}
+                        onChange={e => setFormData({...formData, pickupLocation: e.target.value})}
                        />
                        
-                       {!formData.locationCoords ? (
-                         <div className="border-2 border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center text-gray-500 bg-white hover:bg-gray-50 cursor-pointer" onClick={() => setShowMap(true)}>
-                            <Icons.Map className="h-8 w-8 mb-2 text-gray-400" />
-                            <span className="text-sm font-medium">Click para fijar en mapa</span>
+                       <Input 
+                        label="Lugar de Destino"
+                        placeholder="Dirección o 'A confirmar'" 
+                        icon={Icons.MapPin} 
+                        value={formData.destinationLocation}
+                        onChange={e => setFormData({...formData, destinationLocation: e.target.value})}
+                       />
+                       
+                       {!formData.pickupCoords ? (
+                         <div className="border-2 border-dashed border-gray-300 rounded-md p-4 flex flex-col items-center justify-center text-gray-500 bg-white hover:bg-gray-50 cursor-pointer" onClick={() => setShowMap(true)}>
+                            <Icons.Map className="h-6 w-6 mb-1 text-gray-400" />
+                            <span className="text-xs font-medium">Click para fijar recogida en mapa (opcional)</span>
                          </div>
                        ) : (
                          <div className="flex items-center justify-between bg-green-50 border border-green-200 p-3 rounded-md text-green-800">
                             <div className="flex items-center gap-2">
                                <Icons.MapPin className="h-5 w-5 text-green-600" />
-                               <span className="text-xs font-bold text-green-700">Ubicación Fijada: {formData.locationCoords.lat}, {formData.locationCoords.lng}</span>
+                               <span className="text-xs font-bold text-green-700">Recogida: {formData.pickupCoords.lat}, {formData.pickupCoords.lng}</span>
                             </div>
-                            <button onClick={() => setFormData({...formData, locationCoords: null})} className="text-xs underline px-2">Quitar</button>
+                            <button onClick={() => setFormData({...formData, pickupCoords: null})} className="text-xs underline px-2">Quitar</button>
                          </div>
                        )}
                     </div>
@@ -791,24 +1286,72 @@ export const Preview = () => {
                         <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">3</span>
                         Vehículo
                       </h4>
-                      <Select 
-                        label="Seleccionar Unidad"
-                        options={vehicles.map(v => ({ label: `${v.name} - ${v.plate}`, value: v.id }))} 
-                        value={formData.vehicleId}
-                        onChange={e => setFormData({...formData, vehicleId: e.target.value})}
-                      />
+                      <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Seleccionar Unidad</label>
+                        {!newVehicleMode ? (
+                          <div className="flex gap-2">
+                            <Select 
+                              options={vehicles.map(v => ({ label: `${v.brand} ${v.model} - ${v.plate}`, value: v.id }))} 
+                              value={formData.vehicleId}
+                              onChange={e => setFormData({...formData, vehicleId: e.target.value})}
+                            />
+                            <Button variant="outline" onClick={() => setNewVehicleMode(true)} className="px-3">+</Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
+                            <Input placeholder="Marca (ej: Toyota)" value={tempVehicle.brand} onChange={(e) => setTempVehicle({...tempVehicle, brand: e.target.value})} autoFocus />
+                            <Input placeholder="Modelo (ej: Hilux)" value={tempVehicle.model} onChange={(e) => setTempVehicle({...tempVehicle, model: e.target.value})} />
+                            <Select 
+                              options={[
+                                { label: 'Compacto', value: 'Compacto' },
+                                { label: 'Sedán', value: 'Sedán' },
+                                { label: 'SUV', value: 'SUV' },
+                                { label: 'Van', value: 'Van' },
+                                { label: 'Camioneta', value: 'Camioneta' }
+                              ]}
+                              value={tempVehicle.size}
+                              onChange={(e) => setTempVehicle({...tempVehicle, size: e.target.value})}
+                            />
+                            <Input placeholder="Placa (ej: ABC-123)" value={tempVehicle.plate} onChange={(e) => setTempVehicle({...tempVehicle, plate: e.target.value})} />
+                            <div className="flex gap-2">
+                              <Button variant="primary" onClick={handleCreateVehicle} className="flex-1">Guardar</Button>
+                              <Button variant="outline" onClick={() => { setNewVehicleMode(false); setTempVehicle({ brand: "", model: "", size: "", plate: "" }); }}>Cancelar</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                    </div>
                    <div className="space-y-3">
                       <h4 className="text-sm font-bold text-gray-900 border-b pb-1 border-gray-100 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">4</span>
                         Chofer
                       </h4>
-                        value={formData.driverId}
-                        onChange={e => setFormData({...formData, driverId: e.target.value})}
-                      <Select 
-                        label="Asignar Conductor"
-                        options={[{ label: "Sin Chofer", value: "" }, { label: "Carlos Mamani", value: "1" }]} 
-                      />
+                      <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Asignar Conductor</label>
+                        {!newDriverMode ? (
+                          <div className="flex gap-2">
+                            <Select 
+                              options={[
+                                { label: "Sin Chofer", value: "" },
+                                ...drivers.map(d => ({ label: d.name, value: d.id }))
+                              ]} 
+                              value={formData.driverId}
+                              onChange={e => setFormData({...formData, driverId: e.target.value})}
+                            />
+                            <Button variant="outline" onClick={() => setNewDriverMode(true)} className="px-3">+</Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
+                            <Input placeholder="Nombre completo" value={tempDriver.name} onChange={(e) => setTempDriver({...tempDriver, name: e.target.value})} autoFocus />
+                            <Input placeholder="Teléfono" value={tempDriver.phone} onChange={(e) => setTempDriver({...tempDriver, phone: e.target.value})} />
+                            <Input placeholder="Licencia" value={tempDriver.license} onChange={(e) => setTempDriver({...tempDriver, license: e.target.value})} />
+                            <div className="flex gap-2">
+                              <Button variant="primary" onClick={handleCreateDriver} className="flex-1">Guardar</Button>
+                              <Button variant="outline" onClick={() => { setNewDriverMode(false); setTempDriver({ name: "", phone: "", license: "" }); }}>Cancelar</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                    </div>
                 </div>
               </div>
@@ -857,65 +1400,16 @@ export const Preview = () => {
                         <input 
                             className="w-full pl-9 pr-3 py-3 bg-orange-50 border border-orange-200 rounded font-bold text-2xl text-orange-700 focus:outline-none" 
                             value={formData.amount}
-                            onChange={e => setFormData({...formData, amount: Number(e.target.value)})} // Permite override manual
+                            onChange={e => setFormData({...formData, amount: Number(e.target.value)})}
                         />
                       </div>
                       <p className="text-xs text-gray-500 text-right italic">Se calculó automáticamente según horas</p>
                     </div>
 
-                    <div className="space-y-2 pt-4">
-                      <Input 
-                        type="number" 
-                        label="Pago Inicial (Opcional)" 
-                        placeholder="0"
-                        value={formData.initialPayment || 0}
-                        onChange={e => setFormData({...formData, initialPayment: Math.max(0, Number(e.target.value))})}
-                      />
-                      <p className="text-xs text-gray-500">Adelanto que realiza el cliente. Si deja vacío será 0.</p>
-                    </div>
-
-                    {/* TRACKING DE PAGO */}
-                    <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-blue-900 uppercase">Pendiente:</span>
-                        <span className="text-lg font-bold text-blue-700">S/ {formData.pendingAmount}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs text-blue-700 mb-1">
-                          <span>Progreso de Pago</span>
-                          <span>{Math.round((formData.initialPayment / formData.amount) * 100 || 0)}%</span>
-                        </div>
-                        <div className="w-full bg-blue-200 rounded-full h-2.5">
-                          <div 
-                            className="bg-blue-600 h-2.5 rounded-full transition-all" 
-                            style={{ width: `${Math.min(100, (formData.initialPayment / formData.amount) * 100 || 0)}%` }}
-                          />
-                        </div>
-                      </div>
-                      {formData.paymentStatus === 'paid' && (
-                        <div className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded text-center">
-                          ✓ PAGO COMPLETADO
-                        </div>
-                      )}
-                      {formData.paymentStatus === 'partial' && (
-                        <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded text-center">
-                          ⚠ PAGO PARCIAL - Falta: S/ {formData.pendingAmount}
-                        </div>
-                      )}
-                      {formData.paymentStatus === 'pending' && (
-                        <div className="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded text-center">
-                          ✕ SIN PAGO INICIAL - Pendiente: S/ {formData.pendingAmount}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                        <Select 
-                            label="Estado Inicial" 
-                            options={[{ label: "Reservado", value: "reserved"}, { label: "En Curso", value: "rented" }]}
-                            value={formData.status}
-                            onChange={e => setFormData({...formData, status: e.target.value})}
-                        />
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-700">
+                        <strong>ℹ️ Nota:</strong> Los pagos se registran después de crear el contrato desde la tabla de alquileres.
+                      </p>
                     </div>
                   </div>
 
@@ -938,7 +1432,7 @@ export const Preview = () => {
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                <div className="w-full max-w-2xl h-[500px] shadow-2xl animate-in fade-in zoom-in-95">
                  <MapPicker 
-                   onConfirm={(coords) => { setFormData({...formData, locationCoords: coords}); setShowMap(false); }} 
+                   onConfirm={(coords) => { setFormData({...formData, pickupCoords: coords}); setShowMap(false); }} 
                    onCancel={() => setShowMap(false)} 
                  />
                </div>
@@ -986,7 +1480,7 @@ export const Preview = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-semibold text-gray-600 uppercase">Pagado</p>
-                    <p className="font-bold text-lg text-emerald-700">S/ {selectedRentalForPayment.initialPayment || 0}</p>
+                    <p className="font-bold text-lg text-emerald-700">S/ {selectedRentalForPayment.totalPaid || 0}</p>
                   </div>
                 </div>
               </div>
@@ -994,17 +1488,18 @@ export const Preview = () => {
               {/* HISTORIAL DE TRANSACCIONES */}
               <div className="space-y-3">
                 <h4 className="text-sm font-bold text-gray-900">Historial de Transacciones</h4>
-                {(selectedRentalForPayment.paymentHistory || []).length === 0 ? (
+                {rentalPayments.length === 0 ? (
                   <p className="text-xs text-gray-500 text-center py-4">Sin registros de pago</p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {(selectedRentalForPayment.paymentHistory || []).map((payment, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs bg-gray-50 p-3 rounded border border-gray-200">
+                    {rentalPayments.map((payment) => (
+                      <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 p-3 rounded border border-gray-200">
                         <div className="flex-1">
                           <p className="font-bold text-gray-900">
-                            {payment.type === 'initial' ? '💳 Pago Inicial' : '➕ Pago Adicional'}
+                            {payment.paymentTypeLabel || payment.paymentType}
                           </p>
-                          <p className="text-gray-500">{payment.date} {payment.time}</p>
+                          <p className="text-gray-500">{payment.paymentDate} {payment.paymentTime}</p>
+                          {payment.reference && <p className="text-gray-400 text-[10px]">Ref: {payment.reference}</p>}
                         </div>
                         <p className="font-bold text-emerald-700">S/ {payment.amount}</p>
                       </div>
@@ -1021,21 +1516,45 @@ export const Preview = () => {
                     <p className="text-2xl font-bold text-blue-700">S/ {selectedRentalForPayment.pendingAmount}</p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-gray-700 uppercase">Monto a Pagar</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">S/</span>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-700 uppercase">Tipo de Pago</label>
+                      <select 
+                        value={selectedPaymentType}
+                        onChange={e => setSelectedPaymentType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
+                      >
+                        <option value="cash">💵 Efectivo</option>
+                        <option value="bank_transfer">🏦 Transferencia Bancaria</option>
+                        <option value="qr">📱 Pago QR</option>
+                        <option value="other">📋 Otro</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-700 uppercase">Monto a Pagar</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">S/</span>
+                        <input 
+                          type="number"
+                          placeholder={`Máximo: S/ ${selectedRentalForPayment.pendingAmount}`}
+                          value={additionalPaymentAmount}
+                          onChange={e => setAdditionalPaymentAmount(Math.max(0, Number(e.target.value)))}
+                          className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-700 uppercase">Referencia (opcional)</label>
                       <input 
-                        type="number"
-                        placeholder={`Máximo: S/ ${selectedRentalForPayment.pendingAmount}`}
-                        value={additionalPaymentAmount}
-                        onChange={e => setAdditionalPaymentAmount(Math.max(0, Number(e.target.value)))}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                        type="text"
+                        placeholder="Nº de comprobante, transferencia..."
+                        value={paymentReference}
+                        onChange={e => setPaymentReference(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                       />
                     </div>
-                    <p className="text-xs text-gray-600">
-                      Puede pagar parcialmente o completar el monto pendiente.
-                    </p>
                   </div>
 
                   <Button 
