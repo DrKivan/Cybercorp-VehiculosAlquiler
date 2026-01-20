@@ -42,6 +42,7 @@ export const vehicleService = {
         brand: vehicle.brand,
         model: vehicle.model,
         size: vehicle.size || null,
+        color: vehicle.color || null,
         plate: vehicle.plate,
         status: vehicle.status || 'available'
       }])

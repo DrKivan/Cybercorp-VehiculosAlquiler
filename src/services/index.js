@@ -5,3 +5,4 @@ export { rentalService, mapRentalFromSupabase } from './rentalService';
 export { categoryService } from './categoryService';
 export { driverService } from './driverService';
 export { paymentService, mapPaymentFromSupabase, PAYMENT_TYPES } from './paymentService';
+export { companyService } from './companyService';

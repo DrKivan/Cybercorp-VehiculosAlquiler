@@ -20,6 +20,7 @@ CREATE TABLE vehicles (
     brand VARCHAR(100) NOT NULL,        -- Marca (Toyota, Hyundai, etc.)
     model VARCHAR(100) NOT NULL,        -- Modelo (Hilux, H1, etc.)
     size VARCHAR(50),                   -- Tamaño (Compacto, Sedán, SUV, Van, Camioneta)
+    color VARCHAR(50),                  -- Color del vehículo
     plate VARCHAR(20) NOT NULL UNIQUE,  -- Placa
     status VARCHAR(50) DEFAULT 'available', -- available, rented, maintenance
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -100,6 +101,35 @@ CREATE TABLE payments (
     payment_time TIME DEFAULT CURRENT_TIME,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by VARCHAR(255)             -- Usuario que registró el pago (futuro)
+);
+
+-- Tabla de Configuración de Empresa (singleton - solo 1 registro)
+CREATE TABLE company_settings (
+    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1), -- Solo permite 1 registro
+    name VARCHAR(255) NOT NULL,
+    short_name VARCHAR(100),
+    slogan VARCHAR(255),
+    address TEXT,
+    city VARCHAR(100),
+    phones TEXT[],                      -- Array de teléfonos
+    email VARCHAR(255),
+    nit VARCHAR(50),
+    -- Información bancaria
+    bank_name VARCHAR(100),
+    bank_account_type VARCHAR(50),
+    bank_account_number VARCHAR(50),
+    bank_account_holder VARCHAR(255),
+    -- Configuración de cotizaciones
+    quotation_prefix VARCHAR(10) DEFAULT 'COT',
+    quotation_validity_days INTEGER DEFAULT 2,
+    -- Condiciones del servicio (array de textos)
+    service_conditions TEXT[],
+    -- Métodos de pago (JSONB para flexibilidad)
+    payment_methods JSONB,
+    -- Logo (URL o base64)
+    logo_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =====================================================
@@ -231,9 +261,44 @@ INSERT INTO drivers (name, phone, license, status) VALUES
     ('Carlos Mamani', '700111222', 'LIC-001', 'available');
 
 -- Insertar vehículos de ejemplo
-INSERT INTO vehicles (brand, model, size, plate, status) VALUES
-    ('Toyota', 'Hilux', 'Camioneta', 'ABC-123', 'available'),
-    ('Hyundai', 'H1', 'Van', 'XYZ-789', 'available');
+INSERT INTO vehicles (brand, model, size, color, plate, status) VALUES
+    ('Toyota', 'Hilux', 'Camioneta', 'Blanco', 'ABC-123', 'available'),
+    ('Hyundai', 'H1', 'Van', 'Negro', 'XYZ-789', 'available');
+
+-- Insertar configuración de empresa
+INSERT INTO company_settings (
+    name, short_name, slogan, address, city, phones, email, nit,
+    bank_name, bank_account_type, bank_account_number, bank_account_holder,
+    quotation_prefix, quotation_validity_days,
+    service_conditions, payment_methods
+) VALUES (
+    'ESTACIÓN DE SERVICIOS AUTOMOTRIZ - FENIX CARS S.R.L',
+    'VEHÍCULOS CLÁSICOS',
+    '"UN VIAJE AL PASADO"',
+    'AV. INTEGRACION ESQUINA CALLE EMAUS, BARRIO MONTECRISTO',
+    'TARIJA',
+    ARRAY['78709338', '71863354'],
+    'fenixcars@gmail.com',
+    '561367028',
+    'BNB',
+    'CUENTA CORRIENTE',
+    '7000060806',
+    'FENIX CARS S.R.L',
+    'COT',
+    2,
+    ARRAY[
+        'El alquiler mínimo es de 2 horas.',
+        'Las horas adicionales se cobrarán a razón de Bs. 500 por hora.',
+        'No se permite subarrendar el vehículo.',
+        'El alquiler del vehículo incluye el conductor.'
+    ],
+    '[
+        {"id": "cash", "label": "Efectivo", "info": "Av. Integración Esq. Emaus"},
+        {"id": "bank_transfer", "label": "Transferencia Bancaria", "info": "BNB - CUENTA CORRIENTE - 7000060806"},
+        {"id": "qr", "label": "QR", "info": "Solicitar a Administración"},
+        {"id": "other", "label": "Otro", "info": ""}
+    ]'::jsonb
+);
 
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS) - Opcional pero recomendado
@@ -246,6 +311,7 @@ ALTER TABLE drivers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rentals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
 
 -- Política para permitir todas las operaciones (ajustar según necesidades de autenticación)
 -- Por ahora permitimos acceso completo para el anon key
@@ -255,3 +321,4 @@ CREATE POLICY "Allow all for drivers" ON drivers FOR ALL USING (true);
 CREATE POLICY "Allow all for categories" ON categories FOR ALL USING (true);
 CREATE POLICY "Allow all for rentals" ON rentals FOR ALL USING (true);
 CREATE POLICY "Allow all for payments" ON payments FOR ALL USING (true);
+CREATE POLICY "Allow all for company_settings" ON company_settings FOR ALL USING (true);

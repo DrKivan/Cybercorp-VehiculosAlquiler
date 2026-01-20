@@ -614,6 +614,9 @@ export const Preview = () => {
         getClientName={getClientName}
         getVehicleName={getVehicleName}
         getDriverName={getDriverName}
+        clients={clients}
+        vehicles={vehicles}
+        drivers={drivers}
       />
     </div>
   );

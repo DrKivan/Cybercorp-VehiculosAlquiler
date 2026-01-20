@@ -1,6 +1,7 @@
-import React from 'react';
-import { Card, Button, Badge } from '../ui';
+import React, { useState } from 'react';
+import { Card, Button, Badge, Input } from '../ui';
 import { Icons } from '../Icons';
+import { generateQuotationFromRental } from '../../utils/quotationPdf';
 
 /**
  * Rental Detail Modal - Read-only view of rental information
@@ -11,9 +12,36 @@ export const RentalDetailModal = ({
   onClose, 
   getClientName, 
   getVehicleName, 
-  getDriverName 
+  getDriverName,
+  clients,
+  vehicles,
+  drivers
 }) => {
+  const [showObservationPrompt, setShowObservationPrompt] = useState(false);
+  const [observations, setObservations] = useState('');
+
   if (!isOpen || !rental) return null;
+
+  const handleDownloadQuotation = async () => {
+    setShowObservationPrompt(true);
+  };
+
+  const handleConfirmDownload = async (withObservation) => {
+    try {
+      const obs = withObservation ? observations : '';
+      await generateQuotationFromRental(rental, clients, vehicles, drivers, obs);
+      setShowObservationPrompt(false);
+      setObservations('');
+    } catch (error) {
+      console.error('Error generando cotización:', error);
+      alert('Error al generar la cotización: ' + error.message);
+    }
+  };
+
+  const handleCancelObservation = () => {
+    setShowObservationPrompt(false);
+    setObservations('');
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -101,11 +129,69 @@ export const RentalDetailModal = ({
             {rental.paymentStatus === 'pending' && <Badge variant="default">Pago Pendiente</Badge>}
           </div>
 
-          <Button variant="outline" className="w-full" onClick={onClose}>
-            Cerrar
-          </Button>
+          <div className="flex gap-3 pt-2">
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              onClick={handleDownloadQuotation}
+            >
+              <Icons.Download className="w-4 h-4 mr-2" />
+              Descargar Cotización
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={onClose}>
+              Cerrar
+            </Button>
+          </div>
         </div>
       </Card>
+
+      {/* Modal de Observaciones */}
+      {showObservationPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="p-4 border-b border-gray-100">
+              <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Icons.FileText className="w-5 h-5 text-orange-600" />
+                ¿Desea agregar observaciones?
+              </h4>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Puede agregar observaciones adicionales que aparecerán en la cotización PDF.
+              </p>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Observaciones (opcional)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+                  rows={3}
+                  placeholder="Escriba las observaciones aquí..."
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  variant="primary" 
+                  className="flex-1"
+                  onClick={() => handleConfirmDownload(observations.trim() !== '')}
+                >
+                  <Icons.Download className="w-4 h-4 mr-2" />
+                  Descargar
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={handleCancelObservation}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
