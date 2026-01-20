@@ -4,17 +4,23 @@ import * as XLSX from 'xlsx';
  * Servicio Profesional de Exportación a Excel
  * Genera reportes gerenciales con formato y hojas múltiples si es necesario.
  */
-export const exportRentalsToExcel = (rentals, clients, vehicles) => {
+export const exportRentalsToExcel = (rentals, clients, vehicles, drivers = []) => {
   // 1. Preparar Dataset Plano (Flatten Data)
-  // Cruzamos los datos relacionales (ID de cliente/vehículo) con sus nombres reales
+  // Cruzamos los datos relacionales (ID de cliente/vehículo/conductor) con sus nombres reales
   const flatData = rentals.map(r => {
     const client = clients.find(c => c.id === r.clientId) || {};
     const vehicle = vehicles.find(v => v.id === r.vehicleId) || {};
+    const driver = drivers.find(d => d.id === r.driverId) || {};
     
-    // Formatear coordenadas si existen
-    const strCoords = r.locationCoords 
-        ? `${r.locationCoords.lat}, ${r.locationCoords.lng}` 
+    // Generar link de Google Maps si existen coordenadas
+    const mapsLink = r.pickupCoords 
+        ? `https://www.google.com/maps?q=${r.pickupCoords.lat},${r.pickupCoords.lng}` 
         : 'N/A';
+    
+    // Formatear nombre completo del vehículo
+    const vehicleName = vehicle.brand && vehicle.model 
+        ? `${vehicle.brand} ${vehicle.model}` 
+        : 'Desconocido';
 
     return {
       "ID Contrato": r.id,
@@ -24,13 +30,14 @@ export const exportRentalsToExcel = (rentals, clients, vehicles) => {
       "Hora Fin": r.endTime || '-',
       "Cliente": client.name || 'Desconocido',
       "Teléfono": client.phone || '-',
-      "Vehículo": vehicle.name || 'Desconocido',
+      "Vehículo": vehicleName,
       "Placa": vehicle.plate || '-',
       "Categoría": r.category || 'General',
       "Evento": r.eventName || '-',
-      "Ubicación": r.locationText || '-',
-      "Coordenadas GPS": strCoords,
-      "Chofer ID": r.driverId ? (r.driverId === "1" ? "Carlos Mamani" : "Otro") : "Sin Chofer",
+      "Ubicación Recogida": r.pickupLocation || '-',
+      "Ubicación Destino": r.destinationLocation || '-',
+      "Link GPS": mapsLink,
+      "Chofer": driver.name || 'Sin Chofer',
       "Tarifa Base (S/)": r.baseRate || 0,
       "Total (S/)": r.amount || 0
     };
@@ -55,8 +62,9 @@ export const exportRentalsToExcel = (rentals, clients, vehicles) => {
     { wch: 10 }, // Placa
     { wch: 15 }, // Categoria
     { wch: 20 }, // Evento
-    { wch: 30 }, // Ubicacion
-    { wch: 20 }, // GPS
+    { wch: 30 }, // Ubicacion Recogida
+    { wch: 30 }, // Ubicacion Destino
+    { wch: 25 }, // GPS
     { wch: 15 }, // Chofer
     { wch: 12 }, // Tarifa
     { wch: 12 }, // Total

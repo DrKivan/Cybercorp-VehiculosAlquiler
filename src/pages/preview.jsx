@@ -525,7 +525,7 @@ export const Preview = () => {
                 isOpen={isCalendarOpen}
                 onToggle={() => setIsCalendarOpen(!isCalendarOpen)}
               />
-              <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles)} variant="outline" icon={Icons.Download}>
+              <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles, drivers)} variant="outline" icon={Icons.Download}>
                 Exportar Excel
               </Button>
               <Button onClick={handleOpenNew} icon={Icons.Plus}>Nuevo Alquiler</Button>
