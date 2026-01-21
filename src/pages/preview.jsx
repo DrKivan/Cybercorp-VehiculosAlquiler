@@ -242,7 +242,6 @@ export const Preview = () => {
     const reserved = rentals.filter(r => r.status === 'reserved').length;
     const completed = rentals.filter(r => r.status === 'completed').length;
     const totalPending = rentals.filter(r => r.paymentStatus === 'pending').length;
-    const totalPartial = rentals.filter(r => r.paymentStatus === 'partial').length;
     const totalPaid = rentals.filter(r => r.paymentStatus === 'paid').length;
     const totalRevenue = rentals.reduce((sum, r) => sum + (r.amount || 0), 0);
     const totalCollected = rentals.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
@@ -252,7 +251,7 @@ export const Preview = () => {
     const todayRentals = rentals.filter(r => r.date === today);
     
     return {
-      reserved, completed, totalPending, totalPartial, totalPaid,
+      reserved, completed, totalPending, totalPaid,
       totalRevenue, totalCollected, totalPendingAmount,
       thisMonthRevenue, thisMonthRentals: thisMonthRentals.length,
       todayRentals: todayRentals.length, totalRentals: rentals.length,

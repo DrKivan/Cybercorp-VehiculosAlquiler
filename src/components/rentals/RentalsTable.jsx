@@ -54,7 +54,6 @@ export const FiltersToolbar = ({
             onChange={e => setColumnFilters(prev => ({...prev, paymentStatus: e.target.value}))}
             options={[
               { value: 'paid', label: 'Pagado' },
-              { value: 'partial', label: 'Parcial' },
               { value: 'pending', label: 'Pendiente' }
             ]}
           />
@@ -148,7 +147,7 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
               ✓ Pagado
             </div>
           )}
-          {rental.paymentStatus === 'partial' && (
+          {rental.paymentStatus === 'pending' && rental.totalPaid > 0 && (
             <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
               Pago: Bs {rental.totalPaid || 0}
             </div>
@@ -165,7 +164,7 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
           >
             📋 Ver historial
           </button>
-          {(rental.paymentStatus === 'partial' || rental.paymentStatus === 'pending') && (
+          {rental.paymentStatus === 'pending' && (
             <div className="text-xs text-gray-600">
               Falta: Bs {rental.pendingAmount || (rental.amount - (rental.totalPaid || 0))}
             </div>
@@ -174,7 +173,7 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
       </td>
       <td className="px-3 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
-            {(rental.paymentStatus === 'partial' || rental.paymentStatus === 'pending') && (
+            {rental.paymentStatus === 'pending' && (
               <button 
                 onClick={() => onOpenPayment(rental)} 
                 className="text-green-600 hover:text-green-800 p-1 font-bold text-sm" 

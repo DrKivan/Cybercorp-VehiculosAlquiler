@@ -5,15 +5,42 @@ import { companyService } from '../services';
 // Logo en base64 (se cargará dinámicamente)
 let logoBase64 = null;
 
-// Cargar logo al iniciar
+// Cargar y comprimir logo al iniciar
 async function loadLogo() {
   try {
     const response = await fetch('/LOGOS-CLASSIC-CARS (2).png');
     const blob = await response.blob();
+    
+    // Crear imagen para obtener dimensiones
+    const img = new Image();
+    const imageUrl = URL.createObjectURL(blob);
+    
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
+      img.onload = () => {
+        // Crear canvas para comprimir la imagen
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Redimensionar a un tamaño más pequeño para el PDF (max 200px de ancho)
+        const maxWidth = 100;
+        const scale = maxWidth / img.width;
+        canvas.width = maxWidth;
+        canvas.height = img.height * scale;
+        
+        // Dibujar imagen redimensionada
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Convertir a JPEG con compresión (0.8 = 80% calidad)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        
+        URL.revokeObjectURL(imageUrl);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(imageUrl);
+        resolve(null);
+      };
+      img.src = imageUrl;
     });
   } catch (error) {
     console.warn('No se pudo cargar el logo:', error);
@@ -55,9 +82,9 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
     ]
   };
 
-  const doc = new jsPDF();
+  const doc = new jsPDF({ format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 12;
+  const margin = 35;
   let yPos = 10;
 
   // Generar número de cotización
@@ -66,65 +93,76 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
   const quotationId = `${quoteNum}/${year}`;
 
   // ===================== ENCABEZADO CON LOGO =====================
-  // Logo a la izquierda
+  const logoSize = 22; // Tamaño del logo circular
+  const headerHeight = 22; // Altura de la banda negra
+
+  // Fondo negro para todo el encabezado (desde el margen hasta el final)
+  doc.setFillColor(0, 0, 0);
+  doc.rect(margin, yPos, pageWidth - margin * 2, headerHeight, 'F');
+  
+  // Logo circular a la izquierda (se dibuja encima de la banda negra)
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', margin, yPos, 35, 30);
+      doc.addImage(logoBase64, 'JPEG', margin + 2, yPos, logoSize, logoSize);
     } catch (e) {
       console.warn('Error agregando logo:', e);
     }
   }
 
-  // Título a la derecha del logo
-  doc.setFillColor(0, 0, 0);
-  doc.rect(margin + 40, yPos, pageWidth - margin * 2 - 40, 22, 'F');
-  
+  // Texto "COTIZACIÓN N°" centrado en la parte derecha de la banda
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('COTIZACIÓN N°', margin + 42 + (pageWidth - margin * 2 - 44) / 2, yPos + 9, { align: 'center' });
-  doc.setFontSize(16);
-  doc.text(quotationId, margin + 42 + (pageWidth - margin * 2 - 44) / 2, yPos + 18, { align: 'center' });
+  const textCenterX = margin + logoSize + ((pageWidth - margin * 2 - logoSize) / 2);
+  doc.text('COTIZACIÓN N°', textCenterX, yPos + 8, { align: 'center' });
   
-  yPos += 25;
+  // Número de cotización debajo
+  doc.setFontSize(13);
+  doc.text(quotationId, textCenterX, yPos + 16, { align: 'center' });
+  
+  yPos += headerHeight + 2;
 
-  // Fecha y ciudad
+  // Línea separadora fina
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  
+  yPos += 4;
+
+  // Fecha y ciudad alineada a la derecha
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const today = new Date().toLocaleDateString('es-BO', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  }).toUpperCase();
-  doc.text(`${company.city}, ${today}`, pageWidth - margin, yPos, { align: 'right' });
-  
-  yPos += 5;
-
-  // Nombre de empresa y slogan
-  doc.setFillColor(80, 80, 80);
-  doc.rect(margin, yPos, pageWidth - margin * 2, 10, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
-  doc.text(company.shortName || company.name, pageWidth / 2, yPos + 4, { align: 'center' });
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.text(company.slogan || '', pageWidth / 2, yPos + 8, { align: 'center' });
+  const todayDate = new Date();
+  const todayFormatted = `${todayDate.getDate()} DE ${['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'][todayDate.getMonth()]} DE ${todayDate.getFullYear()}`;
+  doc.text(`${company.city}, ${todayFormatted}`, pageWidth - margin, yPos, { align: 'right' });
   
-  yPos += 13;
+  yPos += 6;
+
+  // Banda gris con nombre de empresa y slogan
+  doc.setFillColor(80, 80, 80);
+  doc.rect(margin, yPos, pageWidth - margin * 2, 8, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(company.shortName || company.name, pageWidth / 2, yPos + 3, { align: 'center' });
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'italic');
+  doc.text(company.slogan || '', pageWidth / 2, yPos + 6.5, { align: 'center' });
+  
+  yPos += 10;
 
   // ===================== DATOS DE LA EMPRESA =====================
   drawSectionHeader(doc, 'DATOS DE LA EMPRESA', margin, yPos, pageWidth);
-  yPos += 6;
+  yPos += 5;
 
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: { fontSize: 7, cellPadding: 1 },
     columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold', fillColor: [245, 245, 245] },
+      0: { cellWidth: 24, fontStyle: 'bold', fillColor: [245, 245, 245] },
       1: { cellWidth: 'auto' }
     },
     body: [
@@ -139,21 +177,24 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
 
   // ===================== DATOS DEL CLIENTE =====================
   drawSectionHeader(doc, 'DATOS DEL CLIENTE', margin, yPos, pageWidth);
-  yPos += 6;
+  yPos += 5;
+
+  // Formatear fecha de reserva en mayúsculas
+  const reservationDate = formatDateSpanishUppercase(data.service?.date);
 
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: { fontSize: 7, cellPadding: 1 },
     columnStyles: {
-      0: { cellWidth: 42, fontStyle: 'bold', fillColor: [245, 245, 245] },
+      0: { cellWidth: 38, fontStyle: 'bold', fillColor: [245, 245, 245] },
       1: { cellWidth: 'auto' }
     },
     body: [
       ['NOMBRES Y APELLIDOS:', data.client?.name || 'No especificado'],
       ['TELÉFONO:', data.client?.phone || 'No especificado'],
-      ['FECHA PARA LA RESERVA', data.service?.date || 'Por confirmar']
+      ['FECHA PARA LA RESERVA', reservationDate]
     ]
   });
 
@@ -161,17 +202,17 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
 
   // ===================== DATOS DEL VEHÍCULO =====================
   drawSectionHeader(doc, 'DATOS DEL VEHÍCULO', margin, yPos, pageWidth);
-  yPos += 6;
+  yPos += 5;
 
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: { fontSize: 7, cellPadding: 1 },
     columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold', fillColor: [245, 245, 245] },
-      1: { cellWidth: 45 },
-      2: { cellWidth: 28, fontStyle: 'bold', fillColor: [245, 245, 245] },
+      0: { cellWidth: 22, fontStyle: 'bold', fillColor: [245, 245, 245] },
+      1: { cellWidth: 38 },
+      2: { cellWidth: 22, fontStyle: 'bold', fillColor: [245, 245, 245] },
       3: { cellWidth: 'auto' }
     },
     body: [
@@ -185,20 +226,20 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
 
   // ===================== DETALLE DEL SERVICIO =====================
   drawSectionHeader(doc, 'DETALLE DEL SERVICIO', margin, yPos, pageWidth);
-  yPos += 6;
+  yPos += 5;
 
   const hours = calculateHours(data.service?.startTime, data.service?.endTime);
   
-  // Formatear fecha del servicio: "07 de febrero de 2026"
-  const formattedServiceDate = formatDateSpanish(data.service?.date);
+  // Formatear fecha del servicio: "07 DE FEBRERO DE 2026"
+  const formattedServiceDate = formatDateSpanishUppercase(data.service?.date);
 
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: { fontSize: 7, cellPadding: 1 },
     columnStyles: {
-      0: { cellWidth: 52, fontStyle: 'bold', fillColor: [245, 245, 245] },
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [245, 245, 245] },
       1: { cellWidth: 'auto' }
     },
     body: [
@@ -217,9 +258,9 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
     startY: doc.lastAutoTable.finalY,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 10, cellPadding: 2 },
+    styles: { fontSize: 8, cellPadding: 1.5 },
     columnStyles: {
-      0: { cellWidth: 52, fontStyle: 'bold', fillColor: [255, 200, 100], textColor: [0, 0, 0] },
+      0: { cellWidth: 45, fontStyle: 'bold', fillColor: [255, 200, 100], textColor: [0, 0, 0] },
       1: { cellWidth: 'auto', fontStyle: 'bold', fillColor: [255, 200, 100], textColor: [0, 0, 0] }
     },
     body: [
@@ -231,68 +272,90 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
 
   // Validez
   doc.setTextColor(100, 100, 100);
-  doc.setFontSize(7);
+  doc.setFontSize(6);
   doc.setFont('helvetica', 'italic');
   doc.text(`VALIDEZ DE LA OFERTA ${company.quotationValidityDays || 2} DÍAS`, margin, yPos + 3);
   
-  yPos += 6;
+  yPos += 5;
 
   // ===================== CONDICIONES DEL SERVICIO =====================
   drawSectionHeader(doc, 'CONDICIONES DEL SERVICIO', margin, yPos, pageWidth);
-  yPos += 7;
+  yPos += 6;
 
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(7);
+  doc.setFontSize(6);
   doc.setFont('helvetica', 'normal');
   
   const conditions = company.serviceConditions || [];
   doc.setDrawColor(200, 200, 200);
-  const condHeight = conditions.length * 4 + 4;
+  const condHeight = conditions.length * 3.5 + 3;
   doc.rect(margin, yPos, pageWidth - margin * 2, condHeight);
   
-  yPos += 3;
+  yPos += 2;
   conditions.forEach((condition, index) => {
-    doc.text(`- ${condition}`, margin + 2, yPos + (index * 4));
+    doc.text(`- ${condition}`, margin + 2, yPos + (index * 3.5));
   });
   
-  yPos += condHeight + 3;
+  yPos += condHeight + 2;
 
   // ===================== FORMA DE PAGO =====================
   drawSectionHeader(doc, 'FORMA DE PAGO', margin, yPos, pageWidth);
-  yPos += 6;
+  yPos += 5;
 
-  const paymentBody = (company.paymentMethods || []).map(method => [
-    `☐ ${method.label}`,
-    method.info || '-'
-  ]);
-
+  // Crear tabla de métodos de pago con checkboxes dibujados manualmente
+  const paymentMethods = company.paymentMethods || [];
+  
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: { fontSize: 7, cellPadding: 1 },
     columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold' },
+      0: { cellWidth: 38 },
       1: { cellWidth: 'auto' }
     },
-    body: paymentBody
+    body: paymentMethods.map(method => [
+      method.label,
+      method.info || '-'
+    ]),
+    didDrawCell: function(data) {
+      // Dibujar checkbox cuadrado al inicio de cada fila en la primera columna
+      if (data.column.index === 0 && data.section === 'body') {
+        const checkboxSize = 2.5;
+        const cellX = data.cell.x + 1;
+        const cellY = data.cell.y + (data.cell.height / 2) - (checkboxSize / 2);
+        
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.3);
+        doc.rect(cellX, cellY, checkboxSize, checkboxSize);
+        
+        // Mover el texto para que no se superponga con el checkbox
+        // El texto ya fue dibujado, así que redibujamos
+      }
+    },
+    willDrawCell: function(data) {
+      // Añadir espacio para el checkbox en la primera columna
+      if (data.column.index === 0 && data.section === 'body') {
+        data.cell.text = ['     ' + data.cell.text.join('')];
+      }
+    }
   });
 
   yPos = doc.lastAutoTable.finalY + 3;
 
   // ===================== OBSERVACIONES =====================
   doc.setFillColor(245, 245, 245);
-  doc.rect(margin, yPos, pageWidth - margin * 2, 12);
+  doc.rect(margin, yPos, pageWidth - margin * 2, 10);
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('OBSERVACIONES:', margin + 2, yPos + 4);
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OBSERVACIONES:', margin + 2, yPos + 3);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
   
   if (data.observations) {
     const obsLines = doc.splitTextToSize(data.observations, pageWidth - margin * 2 - 4);
-    doc.text(obsLines, margin + 2, yPos + 8);
+    doc.text(obsLines, margin + 2, yPos + 6);
   }
 
   // ===================== DESCARGAR =====================
@@ -307,11 +370,11 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
  */
 function drawSectionHeader(doc, title, margin, yPos, pageWidth) {
   doc.setFillColor(30, 30, 30);
-  doc.rect(margin, yPos, pageWidth - margin * 2, 5, 'F');
+  doc.rect(margin, yPos, pageWidth - margin * 2, 4, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
-  doc.text(title, pageWidth / 2, yPos + 3.5, { align: 'center' });
+  doc.text(title, pageWidth / 2, yPos + 2.8, { align: 'center' });
 }
 
 /**
@@ -331,6 +394,28 @@ function formatDateSpanish(dateStr) {
     const year = date.getFullYear();
     
     return `${day} de ${month} de ${year}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+/**
+ * Formatea una fecha al formato español en mayúsculas: "07 DE FEBRERO DE 2026"
+ */
+function formatDateSpanishUppercase(dateStr) {
+  if (!dateStr) return 'Por confirmar';
+  
+  try {
+    const date = new Date(dateStr + 'T00:00:00');
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    return `${day} DE ${month} DE ${year}`;
   } catch (e) {
     return dateStr;
   }

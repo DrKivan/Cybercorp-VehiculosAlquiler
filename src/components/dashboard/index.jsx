@@ -39,7 +39,7 @@ export const KPICards = ({ dashboardStats, vehiclesCount }) => {
         </div>
         <div className="flex items-end justify-between mt-2">
           <span className="text-3xl font-extrabold text-amber-700">Bs {dashboardStats.totalPendingAmount.toLocaleString()}</span>
-          <span className="text-xs text-amber-600">{dashboardStats.totalPending + dashboardStats.totalPartial} alquileres</span>
+          <span className="text-xs text-amber-600">{dashboardStats.totalPending} alquileres</span>
         </div>
       </Card>
       
@@ -213,7 +213,6 @@ export const CalendarWidget = ({
  */
 export const PaymentTrackingCard = ({ rentals }) => {
   const pendingRentals = rentals.filter(r => r.paymentStatus === 'pending');
-  const partialRentals = rentals.filter(r => r.paymentStatus === 'partial');
   const paidRentals = rentals.filter(r => r.paymentStatus === 'paid');
 
   if (paidRentals.length === rentals.length) return null;
@@ -230,26 +229,13 @@ export const PaymentTrackingCard = ({ rentals }) => {
             {pendingRentals.length > 0 && (
               <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded">
                 <p className="text-sm font-bold text-red-900">
-                  ⚠ {pendingRentals.length} alquiler(es) sin pago inicial
+                  ⚠ {pendingRentals.length} alquiler(es) con pago pendiente
                 </p>
                 <p className="text-xs text-red-700 mt-1">
-                  Monto total pendiente: <span className="font-bold">Bs {pendingRentals.reduce((sum, r) => sum + r.amount, 0)}</span>
+                  Monto total pendiente: <span className="font-bold">Bs {pendingRentals.reduce((sum, r) => sum + (r.pendingAmount || 0), 0)}</span>
                 </p>
                 <p className="text-xs text-red-700 mt-2">
-                  Recomendación: Contacte al cliente para confirmar la reserva con al menos un pago inicial.
-                </p>
-              </div>
-            )}
-            {partialRentals.length > 0 && (
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded">
-                <p className="text-sm font-bold text-amber-900">
-                  ⚙ {partialRentals.length} alquiler(es) con pago parcial
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Monto total faltante: <span className="font-bold">Bs {partialRentals.reduce((sum, r) => sum + (r.pendingAmount || 0), 0)}</span>
-                </p>
-                <p className="text-xs text-amber-700 mt-2">
-                  Recomendación: Envíe recordatorio de pago antes de la fecha del servicio.
+                  Recomendación: Contacte al cliente para completar el pago antes de la fecha del servicio.
                 </p>
               </div>
             )}

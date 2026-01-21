@@ -125,7 +125,6 @@ export const RentalDetailModal = ({
             {rental.status === 'completed' && <Badge variant="success">Completado</Badge>}
             {rental.status === 'reserved' && <Badge variant="warning">Reservado</Badge>}
             {rental.paymentStatus === 'paid' && <Badge variant="success">Pago Completo</Badge>}
-            {rental.paymentStatus === 'partial' && <Badge variant="warning">Pago Parcial</Badge>}
             {rental.paymentStatus === 'pending' && <Badge variant="default">Pago Pendiente</Badge>}
           </div>
 

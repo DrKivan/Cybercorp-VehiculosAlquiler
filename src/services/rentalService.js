@@ -122,6 +122,9 @@ export const rentalService = {
  * Función auxiliar para convertir datos de Supabase a formato del frontend
  */
 export function mapRentalFromSupabase(rental) {
+  // Normalizar payment_status: solo 'paid' o 'pending' (cualquier otro valor se considera 'pending')
+  const normalizedPaymentStatus = rental.payment_status === 'paid' ? 'paid' : 'pending';
+  
   return {
     id: rental.id,
     clientId: rental.client_id,
@@ -135,8 +138,8 @@ export function mapRentalFromSupabase(rental) {
     baseRate: parseFloat(rental.base_rate),
     amount: parseFloat(rental.amount),
     totalPaid: parseFloat(rental.total_paid || 0),
-    pendingAmount: parseFloat(rental.pending_amount || 0),
-    paymentStatus: rental.payment_status,
+    pendingAmount: parseFloat(rental.pending_amount || rental.amount || 0),
+    paymentStatus: normalizedPaymentStatus,
     status: rental.status,
     pickupLocation: rental.pickup_location,
     destinationLocation: rental.destination_location,

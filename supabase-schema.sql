@@ -71,7 +71,7 @@ CREATE TABLE rentals (
     amount DECIMAL(10, 2) NOT NULL,
     total_paid DECIMAL(10, 2) DEFAULT 0,      -- Total pagado (suma de payments)
     pending_amount DECIMAL(10, 2) DEFAULT 0,  -- Monto pendiente
-    payment_status VARCHAR(50) DEFAULT 'pending', -- pending, partial, paid
+    payment_status VARCHAR(50) DEFAULT 'pending', -- pending, paid
     
     -- Estado del alquiler
     status VARCHAR(50) DEFAULT 'reserved', -- reserved, completed
@@ -205,10 +205,8 @@ BEGIN
     v_pending := GREATEST(0, v_amount - v_total_paid);
     
     -- Determinar estado de pago
-    IF v_total_paid = 0 THEN
+    IF v_total_paid = 0 OR v_pending > 0 THEN
         v_status := 'pending';
-    ELSIF v_pending > 0 THEN
-        v_status := 'partial';
     ELSE
         v_status := 'paid';
     END IF;
