@@ -44,7 +44,8 @@ export const vehicleService = {
         size: vehicle.size || null,
         color: vehicle.color || null,
         plate: vehicle.plate,
-        status: vehicle.status || 'available'
+        status: vehicle.status || 'available',
+        is_active: vehicle.is_active ?? true
       }])
       .select()
       .single();

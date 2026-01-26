@@ -14,13 +14,14 @@ import {
   RentalsTable,
   RentalDetailModal,
   PaymentModal,
-  RentalFormModal
+  RentalFormModal,
+  CatalogsModal
 } from '../components';
 
 /**
  * Header Component
  */
-const Header = () => (
+const Header = ({ onOpenCatalogs }) => (
   <header className="bg-gradient-to-r from-orange-50 via-white to-purple-50 border-b border-orange-100/60 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-md backdrop-blur">
     <div className="flex items-center gap-3">
       <div className="bg-orange-600 rounded-xl p-1.5 text-white shadow-sm ring-1 ring-orange-300/40">
@@ -31,7 +32,10 @@ const Header = () => (
         <span className="text-gray-400 font-semibold text-sm ml-3">Gestión v1.0</span>
       </h1>
     </div>
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
+      <Button variant="outline" icon={Icons.Settings} onClick={onOpenCatalogs}>
+        Catalogos
+      </Button>
       <div className="h-9 w-9 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-700 font-bold shadow-sm ring-2 ring-orange-200/60">AD</div>
     </div>
   </header>
@@ -85,6 +89,10 @@ export const Preview = () => {
     addPayment,
     getPaymentsByRental,
     createCategory,
+    updateCategory,
+    updateClient,
+    updateVehicle,
+    updateDriver,
     getClientName,
     getVehicleName,
     getDriverName
@@ -95,6 +103,7 @@ export const Preview = () => {
   const [showMap, setShowMap] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedRentalForDetail, setSelectedRentalForDetail] = useState(null);
+  const [catalogsOpen, setCatalogsOpen] = useState(false);
   
   // --- FILTROS Y BÚSQUEDA ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -529,7 +538,7 @@ export const Preview = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-orange-100">
-      <Header />
+      <Header onOpenCatalogs={() => setCatalogsOpen(true)} />
 
       <main className="p-6 w-full max-w-screen-2xl mx-auto space-y-6">
         {/* KPI Dashboard */}
@@ -651,6 +660,23 @@ export const Preview = () => {
         clients={clients}
         vehicles={vehicles}
         drivers={drivers}
+      />
+
+      <CatalogsModal
+        isOpen={catalogsOpen}
+        onClose={() => setCatalogsOpen(false)}
+        clients={clients}
+        vehicles={vehicles}
+        drivers={drivers}
+        categories={categories}
+        onCreateClient={createClient}
+        onCreateVehicle={createVehicle}
+        onCreateDriver={createDriver}
+        onCreateCategory={createCategory}
+        onUpdateClient={updateClient}
+        onUpdateVehicle={updateVehicle}
+        onUpdateDriver={updateDriver}
+        onUpdateCategory={updateCategory}
       />
     </div>
   );

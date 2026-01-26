@@ -47,7 +47,7 @@ export function useSupabaseData() {
       setRentals(rentalsData.map(mapRentalFromSupabase));
       setClients(clientsData);
       setVehicles(vehiclesData);
-      setCategories(categoriesData.map(c => c.name));
+      setCategories(categoriesData);
       setDrivers(driversData);
       
     } catch (err) {
@@ -229,10 +229,21 @@ export function useSupabaseData() {
   const createCategory = async (name) => {
     try {
       const newCategory = await categoryService.create(name);
-      setCategories(prev => [...prev, newCategory.name]);
+      setCategories(prev => [...prev, newCategory]);
       return newCategory;
     } catch (err) {
       console.error('Error creando categoría:', err);
+      throw err;
+    }
+  };
+
+  const updateCategory = async (id, updates) => {
+    try {
+      const updatedCategory = await categoryService.update(id, updates);
+      setCategories(prev => prev.map(c => c.id === id ? updatedCategory : c));
+      return updatedCategory;
+    } catch (err) {
+      console.error('Error actualizando categoría:', err);
       throw err;
     }
   };
@@ -303,6 +314,7 @@ export function useSupabaseData() {
     
     // Operaciones de categorías
     createCategory,
+    updateCategory,
     
     // Operaciones de conductores
     createDriver,

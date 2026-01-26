@@ -39,7 +39,8 @@ export const clientService = {
       .from('clients')
       .insert([{
         name: client.name,
-        phone: client.phone
+        phone: client.phone,
+        is_active: client.is_active ?? true
       }])
       .select()
       .single();

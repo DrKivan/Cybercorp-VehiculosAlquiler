@@ -23,7 +23,22 @@ export const categoryService = {
   async create(name) {
     const { data, error } = await supabase
       .from('categories')
-      .insert([{ name }])
+      .insert([{ name, is_active: true }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Actualizar una categoría existente
+   */
+  async update(id, updates) {
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updates)
+      .eq('id', id)
       .select()
       .single();
 

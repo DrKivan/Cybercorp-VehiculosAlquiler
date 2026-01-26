@@ -10,6 +10,7 @@ CREATE TABLE clients (
     phone VARCHAR(50),
     email VARCHAR(255),
     address TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -23,6 +24,7 @@ CREATE TABLE vehicles (
     color VARCHAR(50),                  -- Color del vehículo
     plate VARCHAR(20) NOT NULL UNIQUE,  -- Placa
     status VARCHAR(50) DEFAULT 'available', -- available, rented, maintenance
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -34,6 +36,7 @@ CREATE TABLE drivers (
     phone VARCHAR(50),
     license VARCHAR(50),
     status VARCHAR(50) DEFAULT 'available', -- available, busy
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -42,6 +45,7 @@ CREATE TABLE drivers (
 CREATE TABLE categories (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

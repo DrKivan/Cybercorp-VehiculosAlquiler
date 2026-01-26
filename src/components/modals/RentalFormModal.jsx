@@ -43,6 +43,38 @@ export const RentalFormModal = ({
   const [showObservationPrompt, setShowObservationPrompt] = useState(false);
   const [observations, setObservations] = useState('');
 
+  const normalizedClients = Array.isArray(clients) ? clients : [];
+  const normalizedVehicles = Array.isArray(vehicles) ? vehicles : [];
+  const normalizedDrivers = Array.isArray(drivers) ? drivers : [];
+  const normalizedCategories = Array.isArray(categories)
+    ? categories.map(c => (typeof c === 'string' ? { id: c, name: c, is_active: true } : c))
+    : [];
+
+  const selectedClient = normalizedClients.find(c => c.id === Number(formData.clientId));
+  const activeClients = normalizedClients.filter(c => c.is_active !== false);
+  const clientOptions = [...activeClients, ...(selectedClient && !activeClients.some(c => c.id === selectedClient.id) ? [selectedClient] : [])]
+    .map(c => ({ label: `${c.name}${c.is_active === false ? ' (Inactivo)' : ''}`, value: c.id }));
+
+  const selectedVehicle = normalizedVehicles.find(v => v.id === Number(formData.vehicleId));
+  const activeVehicles = normalizedVehicles.filter(v => v.is_active !== false);
+  const vehicleOptions = [...activeVehicles, ...(selectedVehicle && !activeVehicles.some(v => v.id === selectedVehicle.id) ? [selectedVehicle] : [])]
+    .map(v => ({ label: `${v.brand} ${v.model} - ${v.plate}${v.is_active === false ? ' (Inactivo)' : ''}`, value: v.id }));
+
+  const selectedDriver = normalizedDrivers.find(d => d.id === Number(formData.driverId));
+  const activeDrivers = normalizedDrivers.filter(d => d.is_active !== false);
+  const driverOptions = [
+    { label: "Sin Chofer", value: "" },
+    ...activeDrivers.map(d => ({ label: `${d.name}${d.is_active === false ? ' (Inactivo)' : ''}`, value: d.id })),
+    ...(selectedDriver && !activeDrivers.some(d => d.id === selectedDriver.id)
+      ? [{ label: `${selectedDriver.name} (Inactivo)`, value: selectedDriver.id }]
+      : [])
+  ];
+
+  const selectedCategory = normalizedCategories.find(c => c.name === formData.category);
+  const activeCategories = normalizedCategories.filter(c => c.is_active !== false);
+  const categoryOptions = [...activeCategories, ...(selectedCategory && !activeCategories.some(c => c.name === selectedCategory.name) ? [selectedCategory] : [])]
+    .map(c => ({ label: `${c.name}${c.is_active === false ? ' (Inactivo)' : ''}`, value: c.name }));
+
   if (!isOpen) return null;
 
   const handleDownloadQuotation = () => {
@@ -123,7 +155,7 @@ export const RentalFormModal = ({
                       <Select 
                          label="Seleccionar Cliente" 
                          className="bg-white"
-                         options={clients.map(c => ({ label: c.name, value: c.id }))}
+                         options={clientOptions}
                          value={formData.clientId}
                          onChange={(e) => setFormData({...formData, clientId: Number(e.target.value)})}
                       />
@@ -159,7 +191,7 @@ export const RentalFormModal = ({
                   {!newCategoryMode ? (
                     <div className="flex gap-2">
                         <Select 
-                          options={categories.map(c => ({ label: c, value: c }))}
+                          options={categoryOptions}
                           value={formData.category}
                           onChange={(e) => setFormData({...formData, category: e.target.value})}
                         />
@@ -229,7 +261,7 @@ export const RentalFormModal = ({
                     {!newVehicleMode ? (
                       <div className="flex gap-2">
                         <Select 
-                          options={vehicles.map(v => ({ label: `${v.brand} ${v.model} - ${v.plate}`, value: v.id }))} 
+                          options={vehicleOptions} 
                           value={formData.vehicleId}
                           onChange={e => setFormData({...formData, vehicleId: e.target.value})}
                         />
@@ -269,10 +301,7 @@ export const RentalFormModal = ({
                     {!newDriverMode ? (
                       <div className="flex gap-2">
                         <Select 
-                          options={[
-                            { label: "Sin Chofer", value: "" },
-                            ...drivers.map(d => ({ label: d.name, value: d.id }))
-                          ]} 
+                          options={driverOptions} 
                           value={formData.driverId}
                           onChange={e => setFormData({...formData, driverId: e.target.value})}
                         />

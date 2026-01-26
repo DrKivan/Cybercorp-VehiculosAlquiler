@@ -41,7 +41,8 @@ export const driverService = {
         name: driver.name,
         phone: driver.phone,
         license: driver.license,
-        status: driver.status || 'available'
+        status: driver.status || 'available',
+        is_active: driver.is_active ?? true
       }])
       .select()
       .single();

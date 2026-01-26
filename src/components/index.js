@@ -14,4 +14,4 @@ export { KPICards, SummaryCard, CalendarWidget, PaymentTrackingCard } from './da
 export { FiltersToolbar, RentalsTable } from './rentals/RentalsTable';
 
 // Modals
-export { RentalDetailModal, PaymentModal, RentalFormModal } from './modals';
+export { RentalDetailModal, PaymentModal, RentalFormModal, CatalogsModal } from './modals';
