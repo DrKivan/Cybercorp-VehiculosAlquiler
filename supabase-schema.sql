@@ -190,16 +190,24 @@ DECLARE
     v_amount DECIMAL(10, 2);
     v_pending DECIMAL(10, 2);
     v_status VARCHAR(50);
+    v_rental_id BIGINT;
 BEGIN
+    -- Determinar el rental_id segun la tabla origen
+    IF TG_TABLE_NAME = 'rentals' THEN
+        v_rental_id := COALESCE(NEW.id, OLD.id);
+    ELSE
+        v_rental_id := COALESCE(NEW.rental_id, OLD.rental_id);
+    END IF;
+
     -- Calcular total pagado para este rental
     SELECT COALESCE(SUM(amount), 0) INTO v_total_paid
     FROM payments
-    WHERE rental_id = COALESCE(NEW.rental_id, OLD.rental_id);
+    WHERE rental_id = v_rental_id;
     
     -- Obtener monto total del rental
     SELECT amount INTO v_amount
     FROM rentals
-    WHERE id = COALESCE(NEW.rental_id, OLD.rental_id);
+    WHERE id = v_rental_id;
     
     -- Calcular pendiente
     v_pending := GREATEST(0, v_amount - v_total_paid);
@@ -216,7 +224,7 @@ BEGIN
     SET total_paid = v_total_paid,
         pending_amount = v_pending,
         payment_status = v_status
-    WHERE id = COALESCE(NEW.rental_id, OLD.rental_id);
+    WHERE id = v_rental_id;
     
     RETURN NEW;
 END;
@@ -237,6 +245,12 @@ CREATE TRIGGER after_payment_update
 -- Trigger para DELETE en payments
 CREATE TRIGGER after_payment_delete
     AFTER DELETE ON payments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_rental_payment_totals();
+
+-- Trigger para UPDATE de amount en rentals
+CREATE TRIGGER after_rental_amount_update
+    AFTER UPDATE OF amount ON rentals
     FOR EACH ROW
     EXECUTE FUNCTION update_rental_payment_totals();
 

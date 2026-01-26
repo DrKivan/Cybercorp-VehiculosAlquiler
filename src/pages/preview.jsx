@@ -247,7 +247,12 @@ export const Preview = () => {
     const totalRevenue = rentals.reduce((sum, r) => sum + (r.amount || 0), 0);
     const totalCollected = rentals.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
     // Solo sumar lo que falta por pagar de alquileres pendientes
-    const totalPendingAmount = pendingRentals.reduce((sum, r) => sum + (r.amount - (r.totalPaid || 0)), 0);
+    const totalPendingAmount = pendingRentals.reduce((sum, r) => {
+      const amount = Number(r.amount) || 0;
+      const totalPaid = Number(r.totalPaid) || 0;
+      const pending = Math.max(0, amount - totalPaid);
+      return sum + pending;
+    }, 0);
     const thisMonthRentals = rentals.filter(r => r.date && r.date.startsWith(thisMonth));
     const thisMonthRevenue = thisMonthRentals.reduce((sum, r) => sum + (r.amount || 0), 0);
     const todayRentals = rentals.filter(r => r.date === today);
@@ -331,9 +336,27 @@ export const Preview = () => {
     }
   };
 
-  const handleAddPayment = async () => {
-    if (additionalPaymentAmount <= 0) {
+  const handleAddPayment = async (mode = 'charge') => {
+    const amountValue = Number(additionalPaymentAmount) || 0;
+    if (!selectedRentalForPayment) return;
+    if (amountValue <= 0) {
       alert("Ingrese un monto válido");
+      return;
+    }
+
+    const amount = Number(selectedRentalForPayment.amount) || 0;
+    const totalPaid = Number(selectedRentalForPayment.totalPaid) || 0;
+    const pendingAmount = Math.max(0, amount - totalPaid);
+    const balance = totalPaid - amount;
+    const isRefund = mode === 'refund';
+
+    if (!isRefund && amountValue > pendingAmount) {
+      alert("El monto excede el pendiente");
+      return;
+    }
+
+    if (isRefund && amountValue > balance) {
+      alert("El monto excede el sobrepago");
       return;
     }
 
@@ -344,11 +367,15 @@ export const Preview = () => {
         qr: 'Pago QR',
         other: 'Otro'
       };
+
+      const paymentLabel = paymentTypeLabels[selectedPaymentType];
+      const paymentTypeLabel = isRefund ? `Devolución - ${paymentLabel}` : paymentLabel;
+      const paymentAmount = isRefund ? -amountValue : amountValue;
       
       const updatedRental = await addPayment(selectedRentalForPayment.id, {
-        amount: additionalPaymentAmount,
+        amount: paymentAmount,
         paymentType: selectedPaymentType,
-        paymentTypeLabel: paymentTypeLabels[selectedPaymentType],
+        paymentTypeLabel,
         reference: paymentReference
       });
       
@@ -358,8 +385,8 @@ export const Preview = () => {
       
       const payments = await getPaymentsByRental(selectedRentalForPayment.id);
       setRentalPayments(payments);
-      
-      alert(`Pago de Bs ${additionalPaymentAmount} registrado exitosamente`);
+
+      alert(`${isRefund ? 'Devolución' : 'Pago'} de Bs ${amountValue} registrada exitosamente`);
     } catch (err) {
       alert("Error al registrar pago: " + err.message);
     }
@@ -504,7 +531,7 @@ export const Preview = () => {
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-orange-100">
       <Header />
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
+      <main className="p-6 w-full max-w-screen-2xl mx-auto space-y-6">
         {/* KPI Dashboard */}
         <KPICards dashboardStats={dashboardStats} vehiclesCount={vehicles.length} />
 
@@ -546,20 +573,26 @@ export const Preview = () => {
             totalCount={rentals.length}
           />
 
-          <RentalsTable
-            rentals={filteredAndSortedRentals}
-            getClientName={getClientName}
-            getVehicleName={getVehicleName}
-            getDriverName={getDriverName}
-            sortConfig={sortConfig}
-            onSort={handleSort}
-            onOpenDetail={handleOpenDetail}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onOpenPayment={handleOpenPaymentModal}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+            <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
+              <RentalsTable
+                rentals={filteredAndSortedRentals}
+                getClientName={getClientName}
+                getVehicleName={getVehicleName}
+                getDriverName={getDriverName}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+                onOpenDetail={handleOpenDetail}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onOpenPayment={handleOpenPaymentModal}
+              />
+            </div>
 
-          <PaymentTrackingCard rentals={rentals} />
+            <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
+              <PaymentTrackingCard rentals={rentals} />
+            </div>
+          </div>
         </section>
       </main>
 

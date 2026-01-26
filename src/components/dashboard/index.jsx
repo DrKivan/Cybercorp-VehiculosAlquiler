@@ -220,9 +220,14 @@ export const PaymentTrackingCard = ({ rentals }) => {
                 <p className="text-sm font-bold text-red-900">
                   ⚠ {pendingRentals.length} alquiler(es) con pago pendiente
                 </p>
-                <p className="text-xs text-red-700 mt-1">
-                  Monto total pendiente: <span className="font-bold">Bs {pendingRentals.reduce((sum, r) => sum + (r.pendingAmount || 0), 0)}</span>
-                </p>
+                 <p className="text-xs text-red-700 mt-1">
+                   Monto total pendiente: <span className="font-bold">Bs {pendingRentals.reduce((sum, r) => {
+                     const amount = Number(r.amount) || 0;
+                     const totalPaid = Number(r.totalPaid) || 0;
+                   const pending = Math.max(0, amount - totalPaid);
+                     return sum + pending;
+                   }, 0)}</span>
+                 </p>
                 <p className="text-xs text-red-700 mt-2">
                   Recomendación: Contacte al cliente para completar el pago antes de la fecha del servicio.
                 </p>

@@ -21,6 +21,14 @@ export const PaymentModal = ({
 }) => {
   if (!isOpen || !rental) return null;
 
+  const amount = Number(rental.amount) || 0;
+  const totalPaid = Number(rental.totalPaid) || 0;
+  const pendingAmount = Math.max(0, amount - totalPaid);
+  const balance = totalPaid - amount;
+  const isOverpaid = balance > 0;
+  const isPending = pendingAmount > 0;
+  const headerTitle = isPending ? 'Completar Pago' : (isOverpaid ? 'Registrar Devolución' : 'Historial de Pagos');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
@@ -30,7 +38,7 @@ export const PaymentModal = ({
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="text-2xl">💰</span>
-              Completar Pago
+              {headerTitle}
             </h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
@@ -54,12 +62,24 @@ export const PaymentModal = ({
             <div className="flex justify-between items-center pt-3 border-t border-gray-200">
               <div>
                 <p className="text-xs font-semibold text-gray-600 uppercase">Monto Total</p>
-                <p className="font-bold text-lg text-gray-900">Bs {rental.amount}</p>
+                <p className="font-bold text-lg text-gray-900">Bs {amount}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs font-semibold text-gray-600 uppercase">Pagado</p>
-                <p className="font-bold text-lg text-emerald-700">Bs {rental.totalPaid || 0}</p>
+                <p className="font-bold text-lg text-emerald-700">Bs {totalPaid}</p>
               </div>
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-600 uppercase">Estado de Pago</p>
+              {isPending && (
+                <p className="text-sm font-bold text-red-700">Pendiente: Bs {pendingAmount}</p>
+              )}
+              {!isPending && isOverpaid && (
+                <p className="text-sm font-bold text-teal-700">Sobrepago: Bs {balance}</p>
+              )}
+              {!isPending && !isOverpaid && (
+                <p className="text-sm font-bold text-emerald-700">✓ Pagado</p>
+              )}
             </div>
           </div>
 
@@ -70,28 +90,35 @@ export const PaymentModal = ({
               <p className="text-xs text-gray-500 text-center py-4">Sin registros de pago</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {payments.map((payment) => (
-                  <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 p-3 rounded border border-gray-200">
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900">
-                        {payment.paymentTypeLabel || payment.paymentType}
+                {payments.map((payment) => {
+                  const isRefund = payment.amount < 0;
+                  const displayAmount = Math.abs(payment.amount);
+
+                  return (
+                    <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 p-3 rounded border border-gray-200">
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900">
+                          {payment.paymentTypeLabel || payment.paymentType}
+                        </p>
+                        <p className="text-gray-500">{payment.paymentDate} {payment.paymentTime}</p>
+                        {payment.reference && <p className="text-gray-400 text-[10px]">Ref: {payment.reference}</p>}
+                      </div>
+                      <p className={`font-bold ${isRefund ? 'text-orange-700' : 'text-emerald-700'}`}>
+                        {isRefund ? '-' : ''}Bs {displayAmount}
                       </p>
-                      <p className="text-gray-500">{payment.paymentDate} {payment.paymentTime}</p>
-                      {payment.reference && <p className="text-gray-400 text-[10px]">Ref: {payment.reference}</p>}
                     </div>
-                    <p className="font-bold text-emerald-700">Bs {payment.amount}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* MONTO PENDIENTE Y FORMULARIO */}
-          {rental.paymentStatus !== 'paid' && (
+          {isPending && (
             <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex justify-between items-center">
                 <p className="text-sm font-bold text-blue-900">Monto Pendiente:</p>
-                <p className="text-2xl font-bold text-blue-700">Bs {rental.pendingAmount}</p>
+                <p className="text-2xl font-bold text-blue-700">Bs {pendingAmount}</p>
               </div>
 
               <div className="space-y-3">
@@ -116,7 +143,7 @@ export const PaymentModal = ({
                     <input 
                       type="text"
                       inputMode="numeric"
-                      placeholder={`Máximo: Bs ${rental.pendingAmount}`}
+                      placeholder={`Máximo: Bs ${pendingAmount}`}
                       value={additionalPaymentAmount === 0 ? '' : additionalPaymentAmount}
                       onChange={e => {
                         const val = e.target.value.replace(/[^0-9.]/g, '');
@@ -139,18 +166,81 @@ export const PaymentModal = ({
                 </div>
               </div>
 
+                <Button 
+                  variant="primary" 
+                  className="w-full py-3"
+                  onClick={() => onAddPayment('charge')}
+                  disabled={additionalPaymentAmount <= 0 || additionalPaymentAmount > pendingAmount}
+                >
+                  ✓ Registrar Pago de Bs {additionalPaymentAmount || 0}
+                </Button>
+            </div>
+          )}
+
+          {isOverpaid && (
+            <div className="space-y-4 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+              <div className="flex justify-between items-center">
+                <p className="text-sm font-bold text-teal-900">Monto a Devolver:</p>
+                <p className="text-2xl font-bold text-teal-700">Bs {balance}</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700 uppercase">Tipo de Devolución</label>
+                  <select 
+                    value={selectedPaymentType}
+                    onChange={e => setSelectedPaymentType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600 text-sm"
+                  >
+                    <option value="cash">💵 Efectivo</option>
+                    <option value="bank_transfer">🏦 Transferencia Bancaria</option>
+                    <option value="qr">📱 Pago QR</option>
+                    <option value="other">📋 Otro</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700 uppercase">Monto a Devolver</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">Bs</span>
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      placeholder={`Máximo: Bs ${balance}`}
+                      value={additionalPaymentAmount === 0 ? '' : additionalPaymentAmount}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9.]/g, '');
+                        setAdditionalPaymentAmount(val === '' ? 0 : Math.max(0, Number(val)));
+                      }}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700 uppercase">Referencia (opcional)</label>
+                  <input 
+                    type="text"
+                    placeholder="Nº de comprobante, transferencia..."
+                    value={paymentReference}
+                    onChange={e => setPaymentReference(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600 text-sm"
+                  />
+                </div>
+              </div>
+
               <Button 
                 variant="primary" 
-                className="w-full py-3"
-                onClick={onAddPayment}
-                disabled={additionalPaymentAmount <= 0 || additionalPaymentAmount > rental.pendingAmount}
+                className="w-full py-3 bg-teal-600 hover:bg-teal-700"
+                onClick={() => onAddPayment('refund')}
+                disabled={additionalPaymentAmount <= 0 || additionalPaymentAmount > balance}
               >
-                ✓ Registrar Pago de Bs {additionalPaymentAmount || 0}
+                ↩ Registrar Devolución de Bs {additionalPaymentAmount || 0}
               </Button>
             </div>
           )}
 
-          {rental.paymentStatus === 'paid' && (
+          {!isPending && !isOverpaid && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
               <p className="text-lg font-bold text-emerald-700">✓ Pago Completado</p>
               <p className="text-xs text-emerald-600 mt-1">Todo el monto ha sido pagado</p>

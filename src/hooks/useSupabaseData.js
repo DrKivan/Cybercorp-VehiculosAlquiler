@@ -148,7 +148,15 @@ export function useSupabaseData() {
   const updateRental = async (id, updates) => {
     try {
       const updatedRental = await rentalService.update(id, updates);
-      const mappedRental = mapRentalFromSupabase(updatedRental);
+      let rentalRecord = updatedRental;
+
+      try {
+        rentalRecord = await rentalService.getById(id);
+      } catch (refreshError) {
+        console.warn('No se pudo refrescar el alquiler despues de actualizar:', refreshError);
+      }
+
+      const mappedRental = mapRentalFromSupabase(rentalRecord);
       setRentals(prev => prev.map(r => r.id === id ? mappedRental : r));
       return mappedRental;
     } catch (err) {

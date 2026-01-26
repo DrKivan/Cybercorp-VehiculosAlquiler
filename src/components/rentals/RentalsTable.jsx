@@ -104,6 +104,14 @@ export const FiltersToolbar = ({
  * Rentals Table Row
  */
 const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpenDetail, onEdit, onDelete, onOpenPayment }) => {
+  const amount = Number(rental.amount) || 0;
+  const totalPaid = Number(rental.totalPaid) || 0;
+  const pendingAmount = Math.max(0, amount - totalPaid);
+  const balance = totalPaid - amount;
+  const isOverpaid = balance > 0;
+  const isPending = pendingAmount > 0;
+  const isPaid = !isPending;
+
   return (
     <tr className="hover:bg-orange-50/40 transition-all duration-150 group">
       <td className="px-3 py-3 font-mono text-gray-500">#{rental.id}</td>
@@ -135,45 +143,48 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
         </div>
       </td>
       <td className="px-3 py-3 text-gray-600 text-xs">{rental.date}</td>
-      <td className="px-3 py-3 font-semibold">Bs {rental.amount}</td>
+      <td className="px-3 py-3 font-semibold">Bs {amount}</td>
       <td className="px-3 py-3">
         {rental.status === 'completed' && <Badge variant="success">Completado</Badge>}
         {rental.status === 'reserved' && <Badge variant="warning">Reservado</Badge>}
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-1">
-          {rental.paymentStatus === 'paid' && (
+          {isPaid && (
             <div className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded text-center">
               ✓ Pagado
             </div>
           )}
-          {rental.paymentStatus === 'pending' && rental.totalPaid > 0 && (
-            <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
-              Pago: Bs {rental.totalPaid || 0}
+          {isOverpaid && (
+            <div className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 rounded text-center">
+              Sobrepago: Bs {balance}
             </div>
           )}
-          {rental.paymentStatus === 'pending' && (
+          {isPending && totalPaid > 0 && (
+            <div className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
+              Pago: Bs {totalPaid}
+            </div>
+          )}
+          {isPending && (
             <div className="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded text-center">
               Pendiente
             </div>
           )}
-          <button 
-            onClick={() => onOpenPayment(rental)}
-            className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline"
-            title="Ver historial de transacciones"
-          >
-            📋 Ver historial
-          </button>
-          {rental.paymentStatus === 'pending' && (
+          {isPending && (
             <div className="text-xs text-gray-600">
-              Falta: Bs {rental.pendingAmount || (rental.amount - (rental.totalPaid || 0))}
+              Falta: Bs {pendingAmount}
+            </div>
+          )}
+          {isOverpaid && (
+            <div className="text-xs text-gray-600">
+              Exceso: Bs {balance}
             </div>
           )}
         </div>
       </td>
       <td className="px-3 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
-            {rental.paymentStatus === 'pending' && (
+            {isPending && (
               <button 
                 onClick={() => onOpenPayment(rental)} 
                 className="text-green-600 hover:text-green-800 p-1 font-bold text-sm" 
@@ -182,6 +193,13 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
                 💳
               </button>
             )}
+            <button
+              onClick={() => onOpenPayment(rental)}
+              className="text-purple-600 hover:text-purple-800 p-1"
+              title="Ver historial"
+            >
+              <Icons.FileText className="w-4 h-4" />
+            </button>
             <button onClick={() => onOpenDetail(rental)} className="text-gray-700 hover:text-gray-900 p-1" title="Ver Detalle"><Icons.Eye className="w-4 h-4"/></button>
             <button onClick={() => onEdit(rental)} className="text-blue-600 hover:text-blue-800 p-1" title="Editar"><Icons.Edit className="w-4 h-4"/></button>
             <button onClick={() => onDelete(rental.id)} className="text-red-600 hover:text-red-800 p-1" title="Eliminar"><Icons.Trash className="w-4 h-4"/></button>

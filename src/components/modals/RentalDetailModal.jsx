@@ -54,8 +54,16 @@ export const RentalDetailModal = ({
     return hours > 0 ? `${hours}h ${minutes > 0 ? minutes + 'm' : ''}` : `${minutes}m`;
   };
 
-  const pendingAmount = rental.pendingAmount || (rental.amount - (rental.totalPaid || 0));
-  const isPaid = rental.paymentStatus === 'paid';
+  const amount = Number(rental.amount) || 0;
+  const totalPaid = Number(rental.totalPaid) || 0;
+  const pendingAmount = Math.max(0, amount - totalPaid);
+  const balance = totalPaid - amount;
+  const isOverpaid = balance > 0;
+  const isPending = pendingAmount > 0;
+  const isPaid = !isPending;
+  const statusLabel = isPending ? 'Pendiente' : (isOverpaid ? 'Sobrepago' : 'Completo');
+  const statusValue = isPending ? `Bs ${pendingAmount}` : (isOverpaid ? `Bs ${balance}` : '✓');
+  const statusColor = isPending ? 'text-amber-400' : (isOverpaid ? 'text-teal-400' : 'text-emerald-400');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -188,18 +196,18 @@ export const RentalDetailModal = ({
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-gray-400 text-[10px] font-medium uppercase">Total</p>
-                <p className="text-xl font-black">Bs {rental.amount}</p>
+                <p className="text-xl font-black">Bs {amount}</p>
               </div>
               <div className="border-x border-gray-700">
                 <p className="text-emerald-400 text-[10px] font-medium uppercase">Pagado</p>
-                <p className="text-xl font-black text-emerald-400">Bs {rental.totalPaid || 0}</p>
+                <p className="text-xl font-black text-emerald-400">Bs {totalPaid}</p>
               </div>
               <div>
-                <p className={`text-[10px] font-medium uppercase ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {isPaid ? 'Completo' : 'Pendiente'}
+                <p className={`text-[10px] font-medium uppercase ${statusColor}`}>
+                  {statusLabel}
                 </p>
-                <p className={`text-xl font-black ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {isPaid ? '✓' : `Bs ${pendingAmount}`}
+                <p className={`text-xl font-black ${statusColor}`}>
+                  {statusValue}
                 </p>
               </div>
             </div>
