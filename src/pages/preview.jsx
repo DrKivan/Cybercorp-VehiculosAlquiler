@@ -573,7 +573,7 @@ export const Preview = () => {
             totalCount={rentals.length}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-3 lg:items-start">
             <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
               <RentalsTable
                 rentals={filteredAndSortedRentals}
@@ -589,7 +589,7 @@ export const Preview = () => {
               />
             </div>
 
-            <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
+            <div className="lg:sticky lg:top-24 lg:self-start">
               <PaymentTrackingCard rentals={rentals} />
             </div>
           </div>

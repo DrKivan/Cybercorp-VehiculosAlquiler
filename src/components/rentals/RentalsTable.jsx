@@ -111,10 +111,54 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
   const isOverpaid = balance > 0;
   const isPending = pendingAmount > 0;
   const isPaid = !isPending;
+  const [isActionOpen, setIsActionOpen] = React.useState(false);
+  const [menuStyle, setMenuStyle] = React.useState(null);
+  const actionRef = React.useRef(null);
+  const actionButtonRef = React.useRef(null);
+
+  const openActionMenu = () => {
+    if (!actionButtonRef.current) return;
+    const rect = actionButtonRef.current.getBoundingClientRect();
+    const right = Math.max(8, window.innerWidth - rect.right);
+    const bottom = Math.max(8, window.innerHeight - rect.top + 8);
+    setMenuStyle({ right, bottom });
+    setIsActionOpen(true);
+  };
+
+  React.useEffect(() => {
+    if (!isActionOpen) return;
+
+    const handleOutsideClick = (event) => {
+      if (actionRef.current && !actionRef.current.contains(event.target)) {
+        setIsActionOpen(false);
+      }
+    };
+
+    const handleScroll = () => setIsActionOpen(false);
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [isActionOpen]);
+
+  const handleAction = (action) => {
+    if (action === 'detail') onOpenDetail(rental);
+    if (action === 'edit') onEdit(rental);
+    if (action === 'delete') onDelete(rental.id);
+    if (action === 'history') onOpenPayment(rental);
+    if (action === 'pay') onOpenPayment(rental);
+
+    setIsActionOpen(false);
+  };
 
   return (
     <tr className="hover:bg-orange-50/40 transition-all duration-150 group">
-      <td className="px-3 py-3 font-mono text-gray-500">#{rental.id}</td>
+
       <td className="px-3 py-3 font-medium">{getClientName(rental.clientId)}</td>
       <td className="px-3 py-3 text-xs">{getVehicleName(rental.vehicleId)}</td>
       <td className="px-3 py-3">
@@ -142,7 +186,7 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
             {rental.eventName && <span className="text-xs text-gray-400 mt-1">{rental.eventName}</span>}
         </div>
       </td>
-      <td className="px-3 py-3 text-gray-600 text-xs">{rental.date}</td>
+      <td className="px-3 py-3 text-gray-600 text-xs whitespace-nowrap">{rental.date}</td>
       <td className="px-3 py-3 font-semibold">Bs {amount}</td>
       <td className="px-3 py-3">
         {rental.status === 'completed' && <Badge variant="success">Completado</Badge>}
@@ -183,26 +227,70 @@ const RentalRow = ({ rental, getClientName, getVehicleName, getDriverName, onOpe
         </div>
       </td>
       <td className="px-3 py-3 text-right">
-        <div className="flex items-center justify-end gap-1">
-            {isPending && (
-              <button 
-                onClick={() => onOpenPayment(rental)} 
-                className="text-green-600 hover:text-green-800 p-1 font-bold text-sm" 
-                title="Completar Pago"
-              >
-                💳
-              </button>
-            )}
+        <div className="flex items-center justify-end">
+          <div className="relative" ref={actionRef}>
             <button
-              onClick={() => onOpenPayment(rental)}
-              className="text-purple-600 hover:text-purple-800 p-1"
-              title="Ver historial"
+              type="button"
+              onClick={() => (isActionOpen ? setIsActionOpen(false) : openActionMenu())}
+              aria-haspopup="menu"
+              aria-expanded={isActionOpen}
+              className="h-9 w-9 rounded-full border border-gray-200 bg-white text-purple-600 shadow-sm hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              title="Acciones"
+              ref={actionButtonRef}
             >
-              <Icons.FileText className="w-4 h-4" />
+              <Icons.Settings className="w-4 h-4 mx-auto" />
             </button>
-            <button onClick={() => onOpenDetail(rental)} className="text-gray-700 hover:text-gray-900 p-1" title="Ver Detalle"><Icons.Eye className="w-4 h-4"/></button>
-            <button onClick={() => onEdit(rental)} className="text-blue-600 hover:text-blue-800 p-1" title="Editar"><Icons.Edit className="w-4 h-4"/></button>
-            <button onClick={() => onDelete(rental.id)} className="text-red-600 hover:text-red-800 p-1" title="Eliminar"><Icons.Trash className="w-4 h-4"/></button>
+
+            {isActionOpen && (
+              <div
+                className="fixed w-44 rounded-xl border border-gray-200 bg-white shadow-xl z-[100] overflow-hidden text-[12px]"
+                style={menuStyle}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleAction('detail')}
+                  className="w-full px-3 py-2 flex items-center gap-2 text-gray-700 hover:bg-gray-50"
+                >
+                  <Icons.Eye className="w-4 h-4 text-gray-600" />
+                  Ver detalle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAction('edit')}
+                  className="w-full px-3 py-2 flex items-center gap-2 text-gray-700 hover:bg-gray-50"
+                >
+                  <Icons.Edit className="w-4 h-4 text-blue-600" />
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAction('history')}
+                  className="w-full px-3 py-2 flex items-center gap-2 text-gray-700 hover:bg-gray-50"
+                >
+                  <Icons.FileText className="w-4 h-4 text-purple-600" />
+                  Ver historial
+                </button>
+                {isPending && (
+                  <button
+                    type="button"
+                    onClick={() => handleAction('pay')}
+                    className="w-full px-3 py-2 flex items-center gap-2 text-gray-700 hover:bg-gray-50"
+                  >
+                    <Icons.CreditCard className="w-4 h-4 text-emerald-600" />
+                    Registrar pago
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleAction('delete')}
+                  className="w-full px-3 py-2 flex items-center gap-2 text-red-600 hover:bg-red-50"
+                >
+                  <Icons.Trash className="w-4 h-4" />
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </td>
     </tr>
@@ -225,14 +313,11 @@ export const RentalsTable = ({
   onOpenPayment
 }) => {
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-visible">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-white/70 backdrop-blur border-b border-gray-200 font-medium text-gray-700">
+        <table className="w-full text-left text-[12px] leading-4">
+          <thead className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-200 font-medium text-gray-700">
             <tr>
-              <th className="px-3 py-3 cursor-pointer hover:bg-gray-100" onClick={() => onSort('id')}>
-                ID {sortConfig.key === 'id' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-              </th>
               <th className="px-3 py-3">CLIENTE</th>
               <th className="px-3 py-3">VEHÍCULO</th>
               <th className="px-3 py-3">CONDUCTOR</th>
@@ -247,7 +332,7 @@ export const RentalsTable = ({
               </th>
               <th className="px-3 py-3">ESTADO</th>
               <th className="px-3 py-3">PAGO</th>
-              <th className="px-3 py-3 text-right">ACCIONES</th>
+              <th className="px-3 py-3 text-right">ACCIÓN</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

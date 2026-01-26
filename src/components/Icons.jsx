@@ -89,6 +89,26 @@ export const Icons = {
     <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
+  ),
+
+  MoreVertical: (props) => (
+    <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6h.01M12 12h.01M12 18h.01" />
+    </svg>
+  ),
+
+  Settings: (props) => (
+    <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1 1 0 00.2 1.1l.1.1a1 1 0 010 1.4l-1.2 1.2a1 1 0 01-1.4 0l-.1-.1a1 1 0 00-1.1-.2 1 1 0 00-.6.9V21a1 1 0 01-1 1h-1.7a1 1 0 01-1-1v-.2a1 1 0 00-.6-.9 1 1 0 00-1.1.2l-.1.1a1 1 0 01-1.4 0l-1.2-1.2a1 1 0 010-1.4l.1-.1a1 1 0 00.2-1.1 1 1 0 00-.9-.6H3a1 1 0 01-1-1v-1.7a1 1 0 011-1h.2a1 1 0 00.9-.6 1 1 0 00-.2-1.1l-.1-.1a1 1 0 010-1.4l1.2-1.2a1 1 0 011.4 0l.1.1a1 1 0 001.1.2 1 1 0 00.6-.9V3a1 1 0 011-1h1.7a1 1 0 011 1v.2a1 1 0 00.6.9 1 1 0 001.1-.2l.1-.1a1 1 0 011.4 0l1.2 1.2a1 1 0 010 1.4l-.1.1a1 1 0 00-.2 1.1 1 1 0 00.9.6H21a1 1 0 011 1v1.7a1 1 0 01-1 1h-.2a1 1 0 00-.9.6z" />
+    </svg>
+  ),
+
+  CreditCard: (props) => (
+    <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h4" />
+    </svg>
   )
 };
 
