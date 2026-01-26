@@ -114,10 +114,14 @@ export const PaymentModal = ({
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">Bs</span>
                     <input 
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       placeholder={`Máximo: Bs ${rental.pendingAmount}`}
-                      value={additionalPaymentAmount}
-                      onChange={e => setAdditionalPaymentAmount(Math.max(0, Number(e.target.value)))}
+                      value={additionalPaymentAmount === 0 ? '' : additionalPaymentAmount}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9.]/g, '');
+                        setAdditionalPaymentAmount(val === '' ? 0 : Math.max(0, Number(val)));
+                      }}
                       className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>

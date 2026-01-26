@@ -7,28 +7,17 @@ import { Icons } from '../Icons';
  */
 export const KPICards = ({ dashboardStats, vehiclesCount }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="p-4 bg-gradient-to-br from-emerald-50 to-white border border-emerald-200">
         <div className="flex items-center justify-between">
-          <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Vehículos Disponibles</span>
+          <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Vehículos Totales</span>
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-emerald-100 text-emerald-700">
             <Icons.Car className="w-4 h-4"/>
           </span>
         </div>
         <div className="flex items-end justify-between mt-2">
-          <span className="text-3xl font-extrabold text-emerald-700">{dashboardStats.availableVehicles}</span>
-          <span className="text-xs text-emerald-600">de {vehiclesCount} total</span>
-        </div>
-      </Card>
-      
-      <Card className="p-4 bg-gradient-to-br from-blue-50 to-white border border-blue-200">
-        <div className="flex items-center justify-between">
-          <span className="text-blue-700 text-xs font-bold uppercase tracking-wider">En Alquiler Activo</span>
-          <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-100 text-blue-700">🚗</span>
-        </div>
-        <div className="flex items-end justify-between mt-2">
-          <span className="text-3xl font-extrabold text-blue-700">{dashboardStats.reserved}</span>
-          <span className="text-xs text-blue-600">{dashboardStats.vehiclesInUse} vehículos</span>
+          <span className="text-3xl font-extrabold text-emerald-700">{vehiclesCount}</span>
+          <span className="text-xs text-emerald-600">unidades registradas</span>
         </div>
       </Card>
       

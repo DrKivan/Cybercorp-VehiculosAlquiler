@@ -323,12 +323,19 @@ export const RentalFormModal = ({
                 </div>
 
                 <div className="space-y-2">
-                    <Input 
-                        type="number" 
-                        label="Tarifa Base (Bs por Hora)" 
-                        value={formData.baseRate}
-                        onChange={e => setFormData({...formData, baseRate: Number(e.target.value)})}
-                    />
+                    <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Tarifa Base (Bs por Hora)</label>
+                        <input 
+                            type="text"
+                            inputMode="numeric"
+                            className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-600"
+                            value={formData.baseRate === 0 ? '' : formData.baseRate}
+                            onChange={e => {
+                                const val = e.target.value.replace(/[^0-9.]/g, '');
+                                setFormData({...formData, baseRate: val === '' ? 0 : Number(val)});
+                            }}
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-2 pt-4 border-t border-gray-200">
@@ -336,9 +343,14 @@ export const RentalFormModal = ({
                   <div className="relative">
                     <span className="absolute left-3 top-2 text-gray-500 font-bold text-lg">Bs</span>
                     <input 
+                        type="text"
+                        inputMode="numeric"
                         className="w-full pl-10 pr-3 py-3 bg-orange-50 border border-orange-200 rounded font-bold text-2xl text-orange-700 focus:outline-none" 
-                        value={formData.amount}
-                        onChange={e => setFormData({...formData, amount: Number(e.target.value)})}
+                        value={formData.amount === 0 ? '' : formData.amount}
+                        onChange={e => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            setFormData({...formData, amount: val === '' ? 0 : Number(val)});
+                        }}
                     />
                   </div>
                   <p className="text-xs text-gray-500 text-right italic">Se calculó automáticamente según horas</p>

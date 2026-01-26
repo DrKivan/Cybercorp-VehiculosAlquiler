@@ -4,7 +4,7 @@ import { Icons } from '../Icons';
 import { generateQuotationFromRental } from '../../utils/quotationPdf';
 
 /**
- * Rental Detail Modal - Read-only view of rental information
+ * Rental Detail Modal - Clean modern design
  */
 export const RentalDetailModal = ({ 
   rental, 
@@ -43,137 +43,212 @@ export const RentalDetailModal = ({
     setObservations('');
   };
 
+  // Calcular duración
+  const calculateDuration = () => {
+    if (!rental.startTime || !rental.endTime) return null;
+    const [startH, startM] = rental.startTime.split(':').map(Number);
+    const [endH, endM] = rental.endTime.split(':').map(Number);
+    const diff = (endH * 60 + endM) - (startH * 60 + startM);
+    const hours = Math.floor(diff / 60);
+    const minutes = diff % 60;
+    return hours > 0 ? `${hours}h ${minutes > 0 ? minutes + 'm' : ''}` : `${minutes}m`;
+  };
+
+  const pendingAmount = rental.pendingAmount || (rental.amount - (rental.totalPaid || 0));
+  const isPaid = rental.paymentStatus === 'paid';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
-      <Card className="relative w-full max-w-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50">
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-orange-100 text-orange-700">👁️</span>
-            <h3 className="text-lg font-bold text-gray-900">Detalle del Alquiler</h3>
+      <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
+      
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50 overflow-hidden">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-5 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-violet-200 text-xs font-medium uppercase tracking-wider">Contrato N°</p>
+              <p className="text-3xl font-black">{rental.id}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {rental.status === 'completed' ? (
+                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold">✓ Completado</span>
+              ) : (
+                <span className="px-3 py-1 bg-amber-400 text-amber-900 rounded-full text-xs font-bold">Reservado</span>
+              )}
+              <button 
+                onClick={onClose} 
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              >
+                <Icons.X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 cursor-pointer">
-            <Icons.X className="w-6 h-6" />
-          </button>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-gray-600 uppercase">Cliente</p>
-              <p className="font-bold text-gray-900">{getClientName(rental.clientId)}</p>
+        {/* Content */}
+        <div className="p-6 space-y-5">
+          
+          {/* Cliente */}
+          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+            <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center">
+              <Icons.User className="w-6 h-6 text-violet-600" />
             </div>
-            <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-blue-700 uppercase">Vehículo</p>
-              <p className="font-bold text-blue-900">{getVehicleName(rental.vehicleId)}</p>
-            </div>
-            <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-purple-700 uppercase">Conductor</p>
-              <p className="font-bold text-purple-900">{rental.driverId ? getDriverName(rental.driverId) : 'Sin asignar'}</p>
+            <div className="flex-1">
+              <p className="text-xs text-gray-500 font-medium uppercase">Cliente</p>
+              <p className="text-lg font-bold text-gray-900">{getClientName(rental.clientId)}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-600 uppercase">Evento</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="info">{rental.category || '—'}</Badge>
-                {rental.eventName && (
-                  <span className="text-xs text-gray-500">{rental.eventName}</span>
+          {/* Vehículo y Conductor */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+              <div className="flex items-center gap-2 mb-1">
+                <Icons.Car className="w-4 h-4 text-indigo-500" />
+                <p className="text-xs text-indigo-600 font-semibold uppercase">Vehículo</p>
+              </div>
+              <p className="font-bold text-gray-900 text-sm">{getVehicleName(rental.vehicleId)}</p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+              <div className="flex items-center gap-2 mb-1">
+                <Icons.User className="w-4 h-4 text-purple-500" />
+                <p className="text-xs text-purple-600 font-semibold uppercase">Conductor</p>
+              </div>
+              <p className="font-bold text-gray-900 text-sm">{rental.driverId ? getDriverName(rental.driverId) : 'Sin asignar'}</p>
+            </div>
+          </div>
+
+          {/* Evento */}
+          <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-pink-600 font-semibold uppercase mb-1">Evento</p>
+                <p className="font-bold text-gray-900">{rental.category || 'General'}</p>
+                {rental.eventName && <p className="text-sm text-gray-600">{rental.eventName}</p>}
+              </div>
+              <span className="text-3xl">🎊</span>
+            </div>
+          </div>
+
+          {/* Fecha y Horario */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 bg-gray-50 rounded-xl text-center">
+              <Icons.Calendar className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-500 font-medium uppercase">Fecha</p>
+              <p className="font-bold text-gray-900 text-sm">{rental.date}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl text-center">
+              <Icons.Clock className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-500 font-medium uppercase">Horario</p>
+              <p className="font-bold text-gray-900 text-sm">{rental.startTime} - {rental.endTime}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl text-center">
+              <span className="text-lg">⏱️</span>
+              <p className="text-[10px] text-gray-500 font-medium uppercase">Duración</p>
+              <p className="font-bold text-gray-900 text-sm">{calculateDuration() || '—'}</p>
+            </div>
+          </div>
+
+          {/* Ubicaciones */}
+          <div className="p-4 bg-gray-50 rounded-xl space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs">A</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-500 font-medium uppercase">Recogida</p>
+                <p className="text-sm text-gray-900">{rental.pickupLocation || 'A confirmar'}</p>
+                {rental.pickupCoords && (
+                  <a 
+                    href={`https://www.google.com/maps?q=${rental.pickupCoords.lat},${rental.pickupCoords.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs text-violet-600 hover:text-violet-800 hover:underline"
+                  >
+                    <Icons.MapPin className="w-3 h-3" />
+                    Ver en Google Maps
+                  </a>
                 )}
               </div>
             </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-600 uppercase">Fecha y Horas</p>
-              <div className="text-sm text-gray-700">
-                <span className="font-bold">{rental.date}</span>
-                <span className="ml-2">{rental.startTime} - {rental.endTime}</span>
+            <div className="ml-3 border-l-2 border-dashed border-gray-300 h-4"></div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-white text-xs">B</span>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 font-medium uppercase">Destino</p>
+                <p className="text-sm text-gray-900">{rental.destinationLocation || 'A confirmar'}</p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-600 uppercase">Recogida</p>
-              <p className="text-sm text-gray-700">{rental.pickupLocation || 'A confirmar'}</p>
-              {rental.pickupCoords && (
-                <p className="text-xs text-gray-500">📍 {rental.pickupCoords.lat}, {rental.pickupCoords.lng}</p>
-              )}
-            </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-600 uppercase">Destino</p>
-              <p className="text-sm text-gray-700">{rental.destinationLocation || 'A confirmar'}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-orange-50 to-white border border-orange-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-orange-700 uppercase">Monto</p>
-              <p className="text-2xl font-extrabold text-orange-700">Bs {rental.amount}</p>
-            </div>
-            <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-emerald-700 uppercase">Pagado</p>
-              <p className="text-2xl font-extrabold text-emerald-700">Bs {rental.totalPaid || 0}</p>
-            </div>
-            <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-lg p-4">
-              <p className="text-xs font-semibold text-amber-700 uppercase">Pendiente</p>
-              <p className="text-2xl font-extrabold text-amber-700">Bs {rental.pendingAmount || (rental.amount - (rental.totalPaid || 0))}</p>
+          {/* Montos */}
+          <div className="bg-gray-900 rounded-xl p-4 text-white">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-gray-400 text-[10px] font-medium uppercase">Total</p>
+                <p className="text-xl font-black">Bs {rental.amount}</p>
+              </div>
+              <div className="border-x border-gray-700">
+                <p className="text-emerald-400 text-[10px] font-medium uppercase">Pagado</p>
+                <p className="text-xl font-black text-emerald-400">Bs {rental.totalPaid || 0}</p>
+              </div>
+              <div>
+                <p className={`text-[10px] font-medium uppercase ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {isPaid ? 'Completo' : 'Pendiente'}
+                </p>
+                <p className={`text-xl font-black ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {isPaid ? '✓' : `Bs ${pendingAmount}`}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {rental.status === 'completed' && <Badge variant="success">Completado</Badge>}
-            {rental.status === 'reserved' && <Badge variant="warning">Reservado</Badge>}
-            {rental.paymentStatus === 'paid' && <Badge variant="success">Pago Completo</Badge>}
-            {rental.paymentStatus === 'pending' && <Badge variant="default">Pago Pendiente</Badge>}
-          </div>
-
+          {/* Botones */}
           <div className="flex gap-3 pt-2">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
+            <button 
               onClick={handleDownloadQuotation}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all"
             >
-              <Icons.Download className="w-4 h-4 mr-2" />
+              <Icons.Download className="w-4 h-4" />
               Descargar Cotización
-            </Button>
-            <Button variant="outline" className="flex-1" onClick={onClose}>
+            </button>
+            <button 
+              onClick={onClose}
+              className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+            >
               Cerrar
-            </Button>
+            </button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Modal de Observaciones */}
       {showObservationPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95">
             <div className="p-4 border-b border-gray-100">
               <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Icons.FileText className="w-5 h-5 text-orange-600" />
-                ¿Desea agregar observaciones?
+                <Icons.FileText className="w-5 h-5 text-violet-600" />
+                ¿Agregar observaciones?
               </h4>
             </div>
             <div className="p-4 space-y-4">
               <p className="text-sm text-gray-600">
-                Puede agregar observaciones adicionales que aparecerán en la cotización PDF.
+                Estas observaciones aparecerán en la cotización PDF.
               </p>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Observaciones (opcional)
-                </label>
-                <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
-                  rows={3}
-                  placeholder="Escriba las observaciones aquí..."
-                  value={observations}
-                  onChange={(e) => setObservations(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
+                rows={3}
+                placeholder="Escriba las observaciones aquí (opcional)..."
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+              />
+              <div className="flex gap-3">
                 <Button 
                   variant="primary" 
-                  className="flex-1"
+                  className="flex-1 bg-violet-600 hover:bg-violet-700"
                   onClick={() => handleConfirmDownload(observations.trim() !== '')}
                 >
                   <Icons.Download className="w-4 h-4 mr-2" />

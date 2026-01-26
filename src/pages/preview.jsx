@@ -241,11 +241,13 @@ export const Preview = () => {
     
     const reserved = rentals.filter(r => r.status === 'reserved').length;
     const completed = rentals.filter(r => r.status === 'completed').length;
-    const totalPending = rentals.filter(r => r.paymentStatus === 'pending').length;
+    const pendingRentals = rentals.filter(r => r.paymentStatus === 'pending');
+    const totalPending = pendingRentals.length;
     const totalPaid = rentals.filter(r => r.paymentStatus === 'paid').length;
     const totalRevenue = rentals.reduce((sum, r) => sum + (r.amount || 0), 0);
     const totalCollected = rentals.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-    const totalPendingAmount = rentals.reduce((sum, r) => sum + (r.pendingAmount || 0), 0);
+    // Solo sumar lo que falta por pagar de alquileres pendientes
+    const totalPendingAmount = pendingRentals.reduce((sum, r) => sum + (r.amount - (r.totalPaid || 0)), 0);
     const thisMonthRentals = rentals.filter(r => r.date && r.date.startsWith(thisMonth));
     const thisMonthRevenue = thisMonthRentals.reduce((sum, r) => sum + (r.amount || 0), 0);
     const todayRentals = rentals.filter(r => r.date === today);
