@@ -33,8 +33,8 @@ export const PaymentModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
       
-      <Card className="relative w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50">
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between z-10">
+      <Card className="relative w-full max-w-md max-h-[85vh] shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50 flex flex-col overflow-hidden">
+        <div className="bg-white border-b border-gray-100 p-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <span className="text-2xl">💰</span>
@@ -46,7 +46,7 @@ export const PaymentModal = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* INFORMACIÓN DEL ALQUILER */}
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
             <div className="flex justify-between items-start">

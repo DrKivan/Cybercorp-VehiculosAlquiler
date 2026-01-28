@@ -42,6 +42,29 @@ export const RentalFormModal = ({
 }) => {
   const [showObservationPrompt, setShowObservationPrompt] = useState(false);
   const [observations, setObservations] = useState('');
+  const [timeError, setTimeError] = useState('');
+
+  // Validar que la hora fin no sea menor a la hora inicio
+  const validateTimes = () => {
+    if (!formData.startTime || !formData.endTime) {
+      setTimeError('');
+      return true;
+    }
+    
+    const [startH, startM] = formData.startTime.split(':').map(Number);
+    const [endH, endM] = formData.endTime.split(':').map(Number);
+    
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    
+    if (endMinutes <= startMinutes) {
+      setTimeError('La hora de fin debe ser mayor a la hora de inicio');
+      return false;
+    }
+    
+    setTimeError('');
+    return true;
+  };
 
   const normalizedClients = Array.isArray(clients) ? clients : [];
   const normalizedVehicles = Array.isArray(vehicles) ? vehicles : [];
@@ -341,14 +364,26 @@ export const RentalFormModal = ({
                         <Input 
                             type="time" label="Inicio" 
                             value={formData.startTime} 
-                            onChange={e => setFormData({...formData, startTime: e.target.value})}
+                            onChange={e => {
+                              setFormData({...formData, startTime: e.target.value});
+                              validateTimes();
+                            }}
                         />
                         <Input 
                             type="time" label="Fin" 
                             value={formData.endTime} 
-                            onChange={e => setFormData({...formData, endTime: e.target.value})}
+                            onChange={e => {
+                              setFormData({...formData, endTime: e.target.value});
+                              validateTimes();
+                            }}
                         />
                     </div>
+                    {timeError && (
+                      <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs font-semibold flex items-center gap-2">
+                        <span>⚠️</span>
+                        {timeError}
+                      </div>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -393,7 +428,17 @@ export const RentalFormModal = ({
               </div>
 
               <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
-                <Button variant="primary" className="w-full py-6 text-base shadow-lg shadow-orange-200" onClick={onSave}>
+                <Button 
+                  variant="primary" 
+                  className="w-full py-6 text-base shadow-lg shadow-orange-200" 
+                  onClick={() => {
+                    if (!validateTimes()) {
+                      return;
+                    }
+                    onSave();
+                  }}
+                  disabled={timeError !== ''}
+                >
                   {formData.id ? 'Guardar Cambios' : 'Generar Contrato'}
                 </Button>
                 <Button 

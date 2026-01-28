@@ -9,7 +9,6 @@ import {
   Icons,
   KPICards,
   CalendarWidget,
-  PaymentTrackingCard,
   FiltersToolbar,
   RentalsTable,
   RentalDetailModal,
@@ -241,7 +240,15 @@ export const Preview = () => {
     return result;
   }, [rentals, searchQuery, columnFilters, sortConfig, selectedCalendarDate, getClientName, getVehicleName]);
 
-  const uniqueCategories = [...new Set(rentals.map(r => r.category).filter(Boolean))];
+  // Obtener categorías de la BD, mostrar solo las activas
+  const uniqueCategories = useMemo(() => {
+    if (!Array.isArray(categories)) return [];
+    
+    return categories
+      .filter(c => c.is_active !== false) // Mostrar solo categorías activas
+      .map(c => typeof c === 'string' ? c : c.name) // Extraer el nombre si es un objeto
+      .filter(Boolean);
+  }, [categories]);
 
   // --- ESTADÍSTICAS DEL DASHBOARD ---
   const dashboardStats = useMemo(() => {
@@ -582,25 +589,19 @@ export const Preview = () => {
             totalCount={rentals.length}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-3 lg:items-start">
-            <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
-              <RentalsTable
-                rentals={filteredAndSortedRentals}
-                getClientName={getClientName}
-                getVehicleName={getVehicleName}
-                getDriverName={getDriverName}
-                sortConfig={sortConfig}
-                onSort={handleSort}
-                onOpenDetail={handleOpenDetail}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onOpenPayment={handleOpenPaymentModal}
-              />
-            </div>
-
-            <div className="lg:sticky lg:top-24 lg:self-start">
-              <PaymentTrackingCard rentals={rentals} />
-            </div>
+          <div className="lg:h-[calc(100vh-360px)] lg:overflow-y-auto">
+            <RentalsTable
+              rentals={filteredAndSortedRentals}
+              getClientName={getClientName}
+              getVehicleName={getVehicleName}
+              getDriverName={getDriverName}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              onOpenDetail={handleOpenDetail}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onOpenPayment={handleOpenPaymentModal}
+            />
           </div>
         </section>
       </main>

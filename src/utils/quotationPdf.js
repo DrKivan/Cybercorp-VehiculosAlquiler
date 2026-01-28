@@ -51,7 +51,7 @@ async function loadLogo() {
 /**
  * Genera un PDF de cotización compacto (1 página)
  */
-export const generateQuotationPDF = async (data, quotationNumber = null, companySettings = null) => {
+export const generateQuotationPDF = async (data, quotationNumber = null, companySettings = null, isNewRental = false) => {
   // Cargar logo si no está cargado
   if (!logoBase64) {
     logoBase64 = await loadLogo();
@@ -87,10 +87,19 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
   const margin = 35;
   let yPos = 10;
 
+  // Obtener año actual del sistema
+  const currentYear = new Date().getFullYear();
+
   // Generar número de cotización
-  const year = new Date().getFullYear();
-  const quoteNum = quotationNumber || Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  const quotationId = `${quoteNum}/${year}`;
+  let quotationId;
+  if (isNewRental && !quotationNumber) {
+    // Para alquileres nuevos sin registro en BD: solo "N/AÑO"
+    quotationId = `N/${currentYear}`;
+  } else {
+    // Para alquileres registrados en BD: "NUMERO/AÑO"
+    const quoteNum = quotationNumber || Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    quotationId = `${quoteNum}/${currentYear}`;
+  }
 
   // ===================== ENCABEZADO CON LOGO =====================
   const logoSize = 22; // Tamaño del logo circular
@@ -491,7 +500,9 @@ export const generateQuotationFromForm = async (formData, clients, vehicles, dri
     observations: observations
   };
 
-  return generateQuotationPDF(data, null, company);
+  // Pasar isNewRental=true para generar formato N cuando no hay ID registrado en BD
+  const isNewRental = !formData.id;
+  return generateQuotationPDF(data, null, company, isNewRental);
 };
 
 /**
