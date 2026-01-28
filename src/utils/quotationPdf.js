@@ -454,8 +454,9 @@ function calculateHours(startTime, endTime) {
  * @param {Array} drivers - Lista de conductores (no se usa en el PDF)
  * @param {string} observations - Observaciones para la cotización
  * @param {Object} companySettings - Configuración de empresa (opcional)
+ * @param {string} quotationNumber - Número de cotización manual (opcional)
  */
-export const generateQuotationFromForm = async (formData, clients, vehicles, drivers, observations = '', companySettings = null) => {
+export const generateQuotationFromForm = async (formData, clients, vehicles, drivers, observations = '', companySettings = null, quotationNumber = null) => {
   // Intentar cargar configuración de empresa si no se proporciona
   let company = companySettings;
   if (!company) {
@@ -502,7 +503,7 @@ export const generateQuotationFromForm = async (formData, clients, vehicles, dri
 
   // Pasar isNewRental=true para generar formato N cuando no hay ID registrado en BD
   const isNewRental = !formData.id;
-  return generateQuotationPDF(data, null, company, isNewRental);
+  return generateQuotationPDF(data, quotationNumber, company, isNewRental);
 };
 
 /**
@@ -513,8 +514,9 @@ export const generateQuotationFromForm = async (formData, clients, vehicles, dri
  * @param {Array} drivers - Lista de conductores (no se usa en el PDF)
  * @param {string} observations - Observaciones para la cotización
  * @param {Object} companySettings - Configuración de empresa (opcional)
+ * @param {string} quotationNumber - Número de cotización manual (opcional, usa rental.id si no se proporciona)
  */
-export const generateQuotationFromRental = async (rental, clients, vehicles, drivers, observations = '', companySettings = null) => {
+export const generateQuotationFromRental = async (rental, clients, vehicles, drivers, observations = '', companySettings = null, quotationNumber = null) => {
   // Intentar cargar configuración de empresa si no se proporciona
   let company = companySettings;
   if (!company) {
@@ -554,7 +556,9 @@ export const generateQuotationFromRental = async (rental, clients, vehicles, dri
     observations: observations
   };
 
-  return generateQuotationPDF(data, rental.id, company);
+  // Usar el número de cotización manual si se proporciona, sino usar el ID de la renta
+  const finalQuotationNumber = quotationNumber || rental.id;
+  return generateQuotationPDF(data, finalQuotationNumber, company);
 };
 
 export default {

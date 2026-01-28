@@ -16,6 +16,7 @@ export const RentalFormModal = ({
   vehicles,
   drivers,
   categories,
+  rentals,
   // Category handlers
   newCategoryMode,
   setNewCategoryMode,
@@ -42,6 +43,7 @@ export const RentalFormModal = ({
 }) => {
   const [showObservationPrompt, setShowObservationPrompt] = useState(false);
   const [observations, setObservations] = useState('');
+  const [quotationNumber, setQuotationNumber] = useState('');
   const [timeError, setTimeError] = useState('');
 
   // Validar que la hora fin no sea menor a la hora inicio
@@ -66,6 +68,55 @@ export const RentalFormModal = ({
     return true;
   };
 
+  // Convertir tiempo a minutos para comparaciones
+  const timeToMinutes = (time) => {
+    if (!time) return 0;
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // Verificar si dos rangos de tiempo se solapan
+  const timeRangesOverlap = (start1, end1, start2, end2) => {
+    const s1 = timeToMinutes(start1);
+    const e1 = timeToMinutes(end1);
+    const s2 = timeToMinutes(start2);
+    const e2 = timeToMinutes(end2);
+    
+    // Se solapan si: inicio1 < fin2 AND inicio2 < fin1
+    return s1 < e2 && s2 < e1;
+  };
+
+  // Obtener reservas que generan conflicto para la fecha y horario seleccionados
+  const getConflictingRentals = () => {
+    if (!formData.date || !formData.startTime || !formData.endTime) return [];
+    
+    const normalizedRentals = Array.isArray(rentals) ? rentals : [];
+    
+    return normalizedRentals.filter(r => {
+      // No considerar la misma renta si se está editando
+      if (formData.id && r.id === formData.id) return false;
+      
+      // Solo considerar reservas activas (no completadas)
+      if (r.status === 'completed') return false;
+      
+      // Verificar si es la misma fecha
+      if (r.date !== formData.date) return false;
+      
+      // Verificar si hay solapamiento de horarios
+      return timeRangesOverlap(formData.startTime, formData.endTime, r.startTime, r.endTime);
+    });
+  };
+
+  const conflictingRentals = getConflictingRentals();
+
+  // Vehículos en conflicto (ya reservados en ese horario)
+  const conflictingVehicleIds = conflictingRentals.map(r => r.vehicleId);
+  
+  // Conductores en conflicto (ya asignados en ese horario)
+  const conflictingDriverIds = conflictingRentals
+    .filter(r => r.driverId) // Solo los que tienen conductor asignado
+    .map(r => r.driverId);
+
   const normalizedClients = Array.isArray(clients) ? clients : [];
   const normalizedVehicles = Array.isArray(vehicles) ? vehicles : [];
   const normalizedDrivers = Array.isArray(drivers) ? drivers : [];
@@ -81,15 +132,29 @@ export const RentalFormModal = ({
   const selectedVehicle = normalizedVehicles.find(v => v.id === Number(formData.vehicleId));
   const activeVehicles = normalizedVehicles.filter(v => v.is_active !== false);
   const vehicleOptions = [...activeVehicles, ...(selectedVehicle && !activeVehicles.some(v => v.id === selectedVehicle.id) ? [selectedVehicle] : [])]
-    .map(v => ({ label: `${v.brand} ${v.model} - ${v.plate}${v.is_active === false ? ' (Inactivo)' : ''}`, value: v.id }));
+    .map(v => {
+      const isConflict = conflictingVehicleIds.includes(v.id);
+      const isInactive = v.is_active === false;
+      let label = `${v.brand} ${v.model} - ${v.plate}`;
+      if (isConflict) label += ' ⚠️ (Ocupado)';
+      else if (isInactive) label += ' (Inactivo)';
+      return { label, value: v.id, disabled: isConflict };
+    });
 
   const selectedDriver = normalizedDrivers.find(d => d.id === Number(formData.driverId));
   const activeDrivers = normalizedDrivers.filter(d => d.is_active !== false);
   const driverOptions = [
-    { label: "Sin Chofer", value: "" },
-    ...activeDrivers.map(d => ({ label: `${d.name}${d.is_active === false ? ' (Inactivo)' : ''}`, value: d.id })),
+    { label: "Sin Chofer", value: "", disabled: false },
+    ...activeDrivers.map(d => {
+      const isConflict = conflictingDriverIds.includes(d.id);
+      const isInactive = d.is_active === false;
+      let label = d.name;
+      if (isConflict) label += ' ⚠️ (Ocupado)';
+      else if (isInactive) label += ' (Inactivo)';
+      return { label, value: d.id, disabled: isConflict };
+    }),
     ...(selectedDriver && !activeDrivers.some(d => d.id === selectedDriver.id)
-      ? [{ label: `${selectedDriver.name} (Inactivo)`, value: selectedDriver.id }]
+      ? [{ label: `${selectedDriver.name} (Inactivo)`, value: selectedDriver.id, disabled: false }]
       : [])
   ];
 
@@ -107,9 +172,11 @@ export const RentalFormModal = ({
   const handleConfirmDownload = async (withObservation) => {
     try {
       const obs = withObservation ? observations : '';
-      await generateQuotationFromForm(formData, clients, vehicles, drivers, obs);
+      const quotNum = quotationNumber.trim() || null;
+      await generateQuotationFromForm(formData, clients, vehicles, drivers, obs, null, quotNum);
       setShowObservationPrompt(false);
       setObservations('');
+      setQuotationNumber('');
     } catch (error) {
       console.error('Error generando cotización:', error);
       alert('Error al generar la cotización: ' + error.message);
@@ -119,6 +186,7 @@ export const RentalFormModal = ({
   const handleCancelObservation = () => {
     setShowObservationPrompt(false);
     setObservations('');
+    setQuotationNumber('');
   };
 
   return (
@@ -271,6 +339,22 @@ export const RentalFormModal = ({
                 </div>
               </div>
             </div>
+
+            {/* Alerta de conflictos */}
+            {conflictingRentals.length > 0 && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <span className="text-amber-600 text-lg">⚠️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Conflicto de horario detectado</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Ya existen {conflictingRentals.length} reserva(s) para el {formData.date} que se cruzan con el horario {formData.startTime} - {formData.endTime}.
+                      Los vehículos y conductores ocupados aparecen marcados como <strong>"⚠️ (Ocupado)"</strong> y no pueden seleccionarse.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 3. VEHICULO & CHOFER */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
@@ -435,6 +519,16 @@ export const RentalFormModal = ({
                     if (!validateTimes()) {
                       return;
                     }
+                    // Validar conflicto de vehículo
+                    if (formData.vehicleId && conflictingVehicleIds.includes(Number(formData.vehicleId))) {
+                      alert('El vehículo seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro vehículo.');
+                      return;
+                    }
+                    // Validar conflicto de conductor
+                    if (formData.driverId && conflictingDriverIds.includes(Number(formData.driverId))) {
+                      alert('El conductor seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro conductor.');
+                      return;
+                    }
                     onSave();
                   }}
                   disabled={timeError !== ''}
@@ -483,13 +577,27 @@ export const RentalFormModal = ({
             <div className="p-4 border-b border-gray-100">
               <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Icons.FileText className="w-5 h-5 text-orange-600" />
-                ¿Desea agregar observaciones?
+                Generar Cotización PDF
               </h4>
             </div>
             <div className="p-4 space-y-4">
               <p className="text-sm text-gray-600">
-                Puede agregar observaciones adicionales que aparecerán en la cotización PDF.
+                Complete los datos para generar la cotización.
               </p>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Número de Cotización *
+                </label>
+                <Input
+                  placeholder="Ej: 001, COT-2026-001, etc."
+                  value={quotationNumber}
+                  onChange={e => setQuotationNumber(e.target.value)}
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500">
+                  💡 Este número aparecerá en la cotización PDF
+                </p>
+              </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Observaciones (opcional)
@@ -507,6 +615,7 @@ export const RentalFormModal = ({
                   variant="primary" 
                   className="flex-1"
                   onClick={() => handleConfirmDownload(observations.trim() !== '')}
+                  disabled={!quotationNumber.trim()}
                 >
                   <Icons.Download className="w-4 h-4 mr-2" />
                   Descargar

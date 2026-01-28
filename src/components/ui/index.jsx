@@ -70,7 +70,14 @@ export const Select = ({ label, options, className = "", ...props }) => (
       >
         <option value="">-- Seleccionar --</option>
         {options.map((opt, idx) => (
-          <option key={idx} value={opt.value}>{opt.label}</option>
+          <option 
+            key={idx} 
+            value={opt.value} 
+            disabled={opt.disabled}
+            className={opt.disabled ? 'text-gray-400 bg-gray-100' : ''}
+          >
+            {opt.label}
+          </option>
         ))}
       </select>
       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">

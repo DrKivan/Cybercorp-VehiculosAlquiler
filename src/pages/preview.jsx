@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { exportRentalsToExcel } from '../utils/excelExport';
+import { exportRentalsToExcel, getAvailablePeriodsFromRentals, MONTH_NAMES } from '../utils/excelExport';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 
 // Import all components
 import {
   Card,
   Button,
+  Select,
   Icons,
   KPICards,
   CalendarWidget,
@@ -103,6 +104,7 @@ export const Preview = () => {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedRentalForDetail, setSelectedRentalForDetail] = useState(null);
   const [catalogsOpen, setCatalogsOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   
   // --- FILTROS Y BÚSQUEDA ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -569,7 +571,7 @@ export const Preview = () => {
                 isOpen={isCalendarOpen}
                 onToggle={() => setIsCalendarOpen(!isCalendarOpen)}
               />
-              <Button onClick={() => exportRentalsToExcel(rentals, clients, vehicles, drivers)} variant="outline" icon={Icons.Download}>
+              <Button onClick={() => setExportModalOpen(true)} variant="outline" icon={Icons.Download}>
                 Exportar Excel
               </Button>
               <Button onClick={handleOpenNew} icon={Icons.Plus}>Nuevo Alquiler</Button>
@@ -616,6 +618,7 @@ export const Preview = () => {
         vehicles={vehicles}
         drivers={drivers}
         categories={categories}
+        rentals={rentals}
         newCategoryMode={newCategoryMode}
         setNewCategoryMode={setNewCategoryMode}
         tempCategory={tempCategory}
@@ -679,6 +682,180 @@ export const Preview = () => {
         onUpdateDriver={updateDriver}
         onUpdateCategory={updateCategory}
       />
+
+      {/* Modal de Exportación Excel */}
+      {exportModalOpen && (
+        <ExportExcelModal
+          isOpen={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          rentals={rentals}
+          clients={clients}
+          vehicles={vehicles}
+          drivers={drivers}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * Modal para seleccionar período de exportación
+ */
+const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers }) => {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [exportType, setExportType] = useState('general'); // 'general', 'year', 'month'
+  
+  if (!isOpen) return null;
+
+  // Obtener períodos disponibles
+  const availablePeriods = getAvailablePeriodsFromRentals(rentals);
+  const availableYears = Object.keys(availablePeriods).map(Number).sort((a, b) => b - a);
+  
+  // Obtener meses con registros para el año seleccionado
+  const monthsForYear = availablePeriods[selectedYear] || [];
+
+  const handleExport = () => {
+    if (exportType === 'general') {
+      exportRentalsToExcel(rentals, clients, vehicles, drivers);
+    } else if (exportType === 'year') {
+      exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear);
+    } else if (exportType === 'month') {
+      if (!selectedMonth) {
+        alert('Seleccione un mes');
+        return;
+      }
+      exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear, Number(selectedMonth));
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
+      
+      <Card className="relative w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50">
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Icons.Download className="w-5 h-5 text-green-600" />
+              Exportar a Excel
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
+              <Icons.X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Tipo de Exportación */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-gray-700">Tipo de Exportación</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportType"
+                  value="general"
+                  checked={exportType === 'general'}
+                  onChange={(e) => setExportType(e.target.value)}
+                  className="text-green-600 focus:ring-green-600"
+                />
+                <div>
+                  <p className="font-semibold text-gray-900">Exportar Todo</p>
+                  <p className="text-xs text-gray-500">Todos los registros disponibles</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportType"
+                  value="year"
+                  checked={exportType === 'year'}
+                  onChange={(e) => setExportType(e.target.value)}
+                  className="text-green-600 focus:ring-green-600"
+                />
+                <div>
+                  <p className="font-semibold text-gray-900">Por Año</p>
+                  <p className="text-xs text-gray-500">Todos los registros de un año</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportType"
+                  value="month"
+                  checked={exportType === 'month'}
+                  onChange={(e) => setExportType(e.target.value)}
+                  className="text-green-600 focus:ring-green-600"
+                />
+                <div>
+                  <p className="font-semibold text-gray-900">Por Mes</p>
+                  <p className="text-xs text-gray-500">Registros de un mes específico</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Selector de Año */}
+          {(exportType === 'year' || exportType === 'month') && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-700">Año</label>
+              <Select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(Number(e.target.value));
+                  setSelectedMonth(''); // Reset mes al cambiar año
+                }}
+                options={availableYears.map(year => ({
+                  value: year,
+                  label: `${year}${year === currentYear ? ' (Actual)' : ''}`
+                }))}
+              />
+            </div>
+          )}
+
+          {/* Selector de Mes */}
+          {exportType === 'month' && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-gray-700">Mes</label>
+              {monthsForYear.length === 0 ? (
+                <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                  ⚠️ No hay registros para el año {selectedYear}
+                </p>
+              ) : (
+                <Select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  options={monthsForYear.map(month => ({
+                    value: month,
+                    label: MONTH_NAMES[month]
+                  }))}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Botones */}
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="primary"
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={handleExport}
+              disabled={exportType === 'month' && monthsForYear.length === 0}
+            >
+              <Icons.Download className="w-4 h-4 mr-2" />
+              Exportar Excel
+            </Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };

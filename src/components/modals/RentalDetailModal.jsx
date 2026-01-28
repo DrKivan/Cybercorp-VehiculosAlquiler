@@ -19,6 +19,7 @@ export const RentalDetailModal = ({
 }) => {
   const [showObservationPrompt, setShowObservationPrompt] = useState(false);
   const [observations, setObservations] = useState('');
+  const [quotationNumber, setQuotationNumber] = useState('');
 
   if (!isOpen || !rental) return null;
 
@@ -29,9 +30,11 @@ export const RentalDetailModal = ({
   const handleConfirmDownload = async (withObservation) => {
     try {
       const obs = withObservation ? observations : '';
-      await generateQuotationFromRental(rental, clients, vehicles, drivers, obs);
+      const quotNum = quotationNumber.trim() || null;
+      await generateQuotationFromRental(rental, clients, vehicles, drivers, obs, null, quotNum);
       setShowObservationPrompt(false);
       setObservations('');
+      setQuotationNumber('');
     } catch (error) {
       console.error('Error generando cotización:', error);
       alert('Error al generar la cotización: ' + error.message);
@@ -41,6 +44,7 @@ export const RentalDetailModal = ({
   const handleCancelObservation = () => {
     setShowObservationPrompt(false);
     setObservations('');
+    setQuotationNumber('');
   };
 
   // Calcular duración
@@ -239,20 +243,41 @@ export const RentalDetailModal = ({
             <div className="p-4 border-b border-gray-100">
               <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Icons.FileText className="w-5 h-5 text-violet-600" />
-                ¿Agregar observaciones?
+                Generar Cotización PDF
               </h4>
             </div>
             <div className="p-4 space-y-4">
               <p className="text-sm text-gray-600">
-                Estas observaciones aparecerán en la cotización PDF.
+                Complete los datos para generar la cotización.
               </p>
-              <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
-                rows={3}
-                placeholder="Escriba las observaciones aquí (opcional)..."
-                value={observations}
-                onChange={(e) => setObservations(e.target.value)}
-              />
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Número de Cotización *
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  placeholder={`Por defecto: ${rental.id}`}
+                  value={quotationNumber}
+                  onChange={(e) => setQuotationNumber(e.target.value)}
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500">
+                  💡 Deje vacío para usar el ID del contrato: <strong>{rental.id}</strong>
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Observaciones (opcional)
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
+                  rows={3}
+                  placeholder="Escriba las observaciones aquí (opcional)..."
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                />
+              </div>
               <div className="flex gap-3">
                 <Button 
                   variant="primary" 
