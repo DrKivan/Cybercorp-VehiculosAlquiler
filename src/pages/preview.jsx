@@ -36,7 +36,6 @@ const Header = ({ onOpenCatalogs }) => (
       <Button variant="outline" icon={Icons.Settings} onClick={onOpenCatalogs}>
         Catalogos
       </Button>
-      <div className="h-9 w-9 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-700 font-bold shadow-sm ring-2 ring-orange-200/60">AD</div>
     </div>
   </header>
 );
@@ -135,6 +134,7 @@ export const Preview = () => {
     pickupLocation: "",
     destinationLocation: "",
     pickupCoords: null,
+    destinationCoords: null,
     date: new Date().toISOString().split('T')[0],
     startTime: "09:00",
     endTime: "18:00",
@@ -323,7 +323,8 @@ export const Preview = () => {
       driverId: rental.driverId || "",
       pickupLocation: rental.pickupLocation || "A confirmar",
       destinationLocation: rental.destinationLocation || "A confirmar",
-      pickupCoords: rental.pickupCoords || null
+      pickupCoords: rental.pickupCoords || null,
+      destinationCoords: rental.destinationCoords || null
     });
     setIsModalOpen(true);
   };
@@ -441,6 +442,7 @@ export const Preview = () => {
         pickupLocation: formData.pickupLocation || "A confirmar",
         destinationLocation: formData.destinationLocation || "A confirmar",
         pickupCoords: formData.pickupCoords,
+        destinationCoords: formData.destinationCoords,
         driverId: formData.driverId
       };
 
@@ -716,17 +718,17 @@ const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers
   // Obtener meses con registros para el año seleccionado
   const monthsForYear = availablePeriods[selectedYear] || [];
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (exportType === 'general') {
-      exportRentalsToExcel(rentals, clients, vehicles, drivers);
+      await exportRentalsToExcel(rentals, clients, vehicles, drivers);
     } else if (exportType === 'year') {
-      exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear);
+      await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear);
     } else if (exportType === 'month') {
       if (!selectedMonth) {
         alert('Seleccione un mes');
         return;
       }
-      exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear, Number(selectedMonth));
+      await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear, Number(selectedMonth));
     }
     onClose();
   };

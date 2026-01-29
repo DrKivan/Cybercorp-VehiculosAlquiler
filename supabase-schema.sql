@@ -69,6 +69,7 @@ CREATE TABLE rentals (
     pickup_location TEXT DEFAULT 'A confirmar',      -- Lugar de recogida
     destination_location TEXT DEFAULT 'A confirmar', -- Lugar de destino
     pickup_coords JSONB,                             -- Coordenadas del lugar de recogida {lat, lng}
+    destination_coords JSONB,                        -- Coordenadas del lugar de destino {lat, lng}
     
     -- Información financiera (montos calculados/resumen)
     base_rate DECIMAL(10, 2) DEFAULT 50,

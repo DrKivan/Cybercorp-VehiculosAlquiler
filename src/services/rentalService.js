@@ -62,7 +62,8 @@ export const rentalService = {
         status: rental.status || 'reserved',
         pickup_location: rental.pickupLocation || 'A confirmar',
         destination_location: rental.destinationLocation || 'A confirmar',
-        pickup_coords: rental.pickupCoords || null
+        pickup_coords: rental.pickupCoords || null,
+        destination_coords: rental.destinationCoords || null
       }])
       .select()
       .single();
@@ -92,6 +93,7 @@ export const rentalService = {
     if (updates.pickupLocation !== undefined) mappedUpdates.pickup_location = updates.pickupLocation;
     if (updates.destinationLocation !== undefined) mappedUpdates.destination_location = updates.destinationLocation;
     if (updates.pickupCoords !== undefined) mappedUpdates.pickup_coords = updates.pickupCoords;
+    if (updates.destinationCoords !== undefined) mappedUpdates.destination_coords = updates.destinationCoords;
 
     const { data, error } = await supabase
       .from('rentals')
@@ -144,6 +146,7 @@ export function mapRentalFromSupabase(rental) {
     pickupLocation: rental.pickup_location,
     destinationLocation: rental.destination_location,
     pickupCoords: rental.pickup_coords,
+    destinationCoords: rental.destination_coords,
     notes: rental.notes,
     createdAt: rental.created_at,
     // Datos relacionados (si vienen de join)

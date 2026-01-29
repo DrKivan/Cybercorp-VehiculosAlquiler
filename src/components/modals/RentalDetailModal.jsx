@@ -188,9 +188,20 @@ export const RentalDetailModal = ({
               <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[10px]">B</span>
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-[9px] text-gray-500 font-medium uppercase">Destino</p>
                 <p className="text-xs text-gray-900">{rental.destinationLocation || 'A confirmar'}</p>
+                {rental.destinationCoords && (
+                  <a 
+                    href={`https://www.google.com/maps?q=${rental.destinationCoords.lat},${rental.destinationCoords.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-red-600 hover:text-red-800 hover:underline"
+                  >
+                    <Icons.MapPin className="w-3 h-3" />
+                    Ver en Maps
+                  </a>
+                )}
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { Card, Button, Input, Select } from '../ui';
 import { Icons } from '../Icons';
 import { MapPicker } from '../MapPicker';
 import { generateQuotationFromForm } from '../../utils/quotationPdf';
+import { supabase } from '../../lib/supabase';
 
 /**
  * Rental Form Modal - Create/Edit rental contracts
@@ -45,6 +46,77 @@ export const RentalFormModal = ({
   const [observations, setObservations] = useState('');
   const [quotationNumber, setQuotationNumber] = useState('');
   const [timeError, setTimeError] = useState('');
+  const [showDestinationMap, setShowDestinationMap] = useState(false);
+  const [pickupLinkInput, setPickupLinkInput] = useState('');
+  const [destinationLinkInput, setDestinationLinkInput] = useState('');
+  const [linkLoading, setLinkLoading] = useState({ pickup: false, destination: false });
+  const [linkError, setLinkError] = useState({ pickup: '', destination: '' });
+
+  /**
+   * Parsear coordenadas de una URL de Google Maps
+   * Soporta múltiples formatos de URL
+   */
+  const parseGoogleMapsUrl = (url) => {
+    // Formato 1: /@lat,lng (más común en URLs de places)
+    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) {
+      const lat = parseFloat(atMatch[1]);
+      const lng = parseFloat(atMatch[2]);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+
+    // Formato 2: ?q=lat,lng o &q=lat,lng
+    const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (qMatch) {
+      return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+    }
+
+    // Formato 3: !3d(lat)!4d(lng) en el data string
+    const dataMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (dataMatch) {
+      return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+    }
+
+    return null;
+  };
+
+  /**
+   * Procesar link de Google Maps (solo URLs largas)
+   */
+  const processGoogleMapsLink = (url, type) => {
+    if (!url.trim()) return;
+
+    setLinkLoading(prev => ({ ...prev, [type]: true }));
+    setLinkError(prev => ({ ...prev, [type]: '' }));
+
+    try {
+      // Verificar si es link corto (no soportado)
+      if (url.includes('maps.app.goo.gl') || url.includes('goo.gl/maps')) {
+        throw new Error('Abre el link en el navegador, espera que cargue, y copia la URL completa');
+      }
+
+      // Parsear URL completa
+      const coords = parseGoogleMapsUrl(url);
+
+      if (!coords) {
+        throw new Error('No se encontraron coordenadas. Copia la URL después de que cargue el mapa');
+      }
+
+      if (type === 'pickup') {
+        setFormData(prev => ({ ...prev, pickupCoords: coords }));
+        setPickupLinkInput('');
+      } else {
+        setFormData(prev => ({ ...prev, destinationCoords: coords }));
+        setDestinationLinkInput('');
+      }
+    } catch (error) {
+      setLinkError(prev => ({ ...prev, [type]: error.message }));
+    } finally {
+      setLinkLoading(prev => ({ ...prev, [type]: false }));
+    }
+  };
 
   // Validar que la hora fin no sea menor a la hora inicio
   const validateTimes = () => {
@@ -306,36 +378,101 @@ export const RentalFormModal = ({
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3 block">Ubicaciones</label>
                 <div className="grid grid-cols-1 gap-4">
-                   <Input 
-                    label="Lugar de Recogida"
-                    placeholder="Dirección o 'A confirmar'" 
-                    icon={Icons.MapPin} 
-                    value={formData.pickupLocation}
-                    onChange={e => setFormData({...formData, pickupLocation: e.target.value})}
-                   />
                    
-                   <Input 
-                    label="Lugar de Destino"
-                    placeholder="Dirección o 'A confirmar'" 
-                    icon={Icons.MapPin} 
-                    value={formData.destinationLocation}
-                    onChange={e => setFormData({...formData, destinationLocation: e.target.value})}
-                   />
-                   
-                   {!formData.pickupCoords ? (
-                     <div className="border-2 border-dashed border-gray-300 rounded-md p-4 flex flex-col items-center justify-center text-gray-500 bg-white hover:bg-gray-50 cursor-pointer" onClick={() => setShowMap(true)}>
-                        <Icons.Map className="h-6 w-6 mb-1 text-gray-400" />
-                        <span className="text-xs font-medium">Click para fijar recogida en mapa (opcional)</span>
+                   {/* === LUGAR DE RECOGIDA === */}
+                   <div className="space-y-2">
+                     <Input 
+                      label="Lugar de Recogida"
+                      placeholder="Dirección o 'A confirmar'" 
+                      icon={Icons.MapPin} 
+                      value={formData.pickupLocation}
+                      onChange={e => setFormData({...formData, pickupLocation: e.target.value})}
+                     />
+                     
+                     {/* Input para link de Google Maps - Recogida */}
+                     <div className="flex gap-2">
+                       <Input 
+                         placeholder="Pegar link de Google Maps..."
+                         value={pickupLinkInput}
+                         onChange={e => setPickupLinkInput(e.target.value)}
+                         className="text-xs"
+                       />
+                       <Button 
+                         variant="outline" 
+                         onClick={() => processGoogleMapsLink(pickupLinkInput, 'pickup')}
+                         disabled={!pickupLinkInput.trim() || linkLoading.pickup}
+                         className="px-3 text-xs"
+                       >
+                         {linkLoading.pickup ? '...' : '📍'}
+                       </Button>
                      </div>
-                   ) : (
-                     <div className="flex items-center justify-between bg-green-50 border border-green-200 p-3 rounded-md text-green-800">
-                        <div className="flex items-center gap-2">
-                           <Icons.MapPin className="h-5 w-5 text-green-600" />
-                           <span className="text-xs font-bold text-green-700">Recogida: {formData.pickupCoords.lat}, {formData.pickupCoords.lng}</span>
-                        </div>
-                        <button onClick={() => setFormData({...formData, pickupCoords: null})} className="text-xs underline px-2">Quitar</button>
+                     {linkError.pickup && (
+                       <p className="text-xs text-red-600">{linkError.pickup}</p>
+                     )}
+                     
+                     {!formData.pickupCoords ? (
+                       <div className="border-2 border-dashed border-gray-300 rounded-md p-3 flex flex-col items-center justify-center text-gray-500 bg-white hover:bg-gray-50 cursor-pointer" onClick={() => setShowMap(true)}>
+                          <Icons.Map className="h-5 w-5 mb-1 text-gray-400" />
+                          <span className="text-xs font-medium">Click para seleccionar en mapa</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center justify-between bg-green-50 border border-green-200 p-2 rounded-md text-green-800">
+                          <div className="flex items-center gap-2">
+                             <Icons.MapPin className="h-4 w-4 text-green-600" />
+                             <span className="text-xs font-bold text-green-700">{formData.pickupCoords.lat}, {formData.pickupCoords.lng}</span>
+                          </div>
+                          <button onClick={() => setFormData({...formData, pickupCoords: null})} className="text-xs underline px-2 hover:text-green-900">Quitar</button>
+                       </div>
+                     )}
+                   </div>
+
+                   {/* === LUGAR DE DESTINO === */}
+                   <div className="space-y-2">
+                     <Input 
+                      label="Lugar de Destino"
+                      placeholder="Dirección o 'A confirmar'" 
+                      icon={Icons.MapPin} 
+                      value={formData.destinationLocation}
+                      onChange={e => setFormData({...formData, destinationLocation: e.target.value})}
+                     />
+                     
+                     {/* Input para link de Google Maps - Destino */}
+                     <div className="flex gap-2">
+                       <Input 
+                         placeholder="Pegar link de Google Maps..."
+                         value={destinationLinkInput}
+                         onChange={e => setDestinationLinkInput(e.target.value)}
+                         className="text-xs"
+                       />
+                       <Button 
+                         variant="outline" 
+                         onClick={() => processGoogleMapsLink(destinationLinkInput, 'destination')}
+                         disabled={!destinationLinkInput.trim() || linkLoading.destination}
+                         className="px-3 text-xs"
+                       >
+                         {linkLoading.destination ? '...' : '📍'}
+                       </Button>
                      </div>
-                   )}
+                     {linkError.destination && (
+                       <p className="text-xs text-red-600">{linkError.destination}</p>
+                     )}
+                     
+                     {!formData.destinationCoords ? (
+                       <div className="border-2 border-dashed border-gray-300 rounded-md p-3 flex flex-col items-center justify-center text-gray-500 bg-white hover:bg-gray-50 cursor-pointer" onClick={() => setShowDestinationMap(true)}>
+                          <Icons.Map className="h-5 w-5 mb-1 text-gray-400" />
+                          <span className="text-xs font-medium">Click para seleccionar en mapa</span>
+                       </div>
+                     ) : (
+                       <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2 rounded-md text-blue-800">
+                          <div className="flex items-center gap-2">
+                             <Icons.MapPin className="h-4 w-4 text-blue-600" />
+                             <span className="text-xs font-bold text-blue-700">{formData.destinationCoords.lat}, {formData.destinationCoords.lng}</span>
+                          </div>
+                          <button onClick={() => setFormData({...formData, destinationCoords: null})} className="text-xs underline px-2 hover:text-blue-900">Quitar</button>
+                       </div>
+                     )}
+                   </div>
+
                 </div>
               </div>
             </div>
@@ -558,13 +695,25 @@ export const RentalFormModal = ({
         </div>
       </Card>
       
-      {/* MAPA MODAL */}
+      {/* MAPA MODAL - RECOGIDA */}
       {showMap && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
            <div className="w-full max-w-2xl h-[500px] shadow-2xl animate-in fade-in zoom-in-95">
              <MapPicker 
                onConfirm={(coords) => { setFormData({...formData, pickupCoords: coords}); setShowMap(false); }} 
                onCancel={() => setShowMap(false)} 
+             />
+           </div>
+        </div>
+      )}
+
+      {/* MAPA MODAL - DESTINO */}
+      {showDestinationMap && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+           <div className="w-full max-w-2xl h-[500px] shadow-2xl animate-in fade-in zoom-in-95">
+             <MapPicker 
+               onConfirm={(coords) => { setFormData({...formData, destinationCoords: coords}); setShowDestinationMap(false); }} 
+               onCancel={() => setShowDestinationMap(false)} 
              />
            </div>
         </div>
