@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { exportRentalsToExcel, getAvailablePeriodsFromRentals, MONTH_NAMES } from '../utils/excelExport';
+import { openDownloadedFile } from '../utils/fileDownload';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 
 // Import all components
@@ -15,7 +16,8 @@ import {
   RentalDetailModal,
   PaymentModal,
   RentalFormModal,
-  CatalogsModal
+  CatalogsModal,
+  AlertModal
 } from '../components';
 
 /**
@@ -24,11 +26,10 @@ import {
 const Header = ({ onOpenCatalogs }) => (
   <header className="bg-gradient-to-r from-orange-50 via-white to-purple-50 border-b border-orange-100/60 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-md backdrop-blur">
     <div className="flex items-center gap-3">
-      <div className="bg-orange-600 rounded-xl p-1.5 text-white shadow-sm ring-1 ring-orange-300/40">
-        <Icons.Car className="h-6 w-6" />
-      </div>
+      
+          <img src="/fenix_cars_rentals.ico" alt="FenixCars Logo" className="h-28 w-auto mt-4" />
+      
       <h1 className="text-xl font-extrabold tracking-tight text-gray-900">
-        Fenix<span className="text-orange-600">Cars</span>
         <span className="text-gray-400 font-semibold text-sm ml-3">Gestión v1.0</span>
       </h1>
     </div>
@@ -105,6 +106,49 @@ export const Preview = () => {
   const [catalogsOpen, setCatalogsOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   
+  // --- ALERT MODAL STATES ---
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    confirmText: 'Aceptar',
+    cancelText: 'Cancelar',
+    onConfirm: null,
+    showSecondaryAction: false,
+    secondaryActionText: 'Abrir Archivo',
+    onSecondaryAction: null
+  });
+  
+  const showAlert = ({ 
+    type = 'info', 
+    title, 
+    message, 
+    confirmText = 'Aceptar', 
+    cancelText = 'Cancelar', 
+    onConfirm = null,
+    showSecondaryAction = false,
+    secondaryActionText = 'Abrir Archivo',
+    onSecondaryAction = null
+  }) => {
+    setAlertModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      onConfirm,
+      showSecondaryAction,
+      secondaryActionText,
+      onSecondaryAction
+    });
+  };
+  
+  const closeAlert = () => {
+    setAlertModal(prev => ({ ...prev, isOpen: false }));
+  };
+  
   // --- FILTROS Y BÚSQUEDA ---
   const [searchQuery, setSearchQuery] = useState('');
   const [columnFilters, setColumnFilters] = useState({
@@ -147,7 +191,7 @@ export const Preview = () => {
   const [newCategoryMode, setNewCategoryMode] = useState(false);
   const [tempCategory, setTempCategory] = useState("");
   const [newVehicleMode, setNewVehicleMode] = useState(false);
-  const [tempVehicle, setTempVehicle] = useState({ brand: "", model: "", size: "", plate: "" });
+  const [tempVehicle, setTempVehicle] = useState({ brand: "", model: "", size: "", color: "", plate: "" });
   const [newDriverMode, setNewDriverMode] = useState(false);
   const [tempDriver, setTempDriver] = useState({ name: "", phone: "", license: "" });
   
@@ -330,13 +374,29 @@ export const Preview = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("¿Seguro que desea eliminar este registro?")) {
-      try {
-        await deleteRental(id);
-      } catch (err) {
-        alert("Error al eliminar: " + err.message);
+    showAlert({
+      type: 'danger',
+      title: '🗑️ Eliminar Alquiler',
+      message: '¿Está seguro que desea eliminar este registro de alquiler? Esta acción eliminará permanentemente el contrato y todos sus pagos asociados.',
+      confirmText: 'Sí, Eliminar',
+      cancelText: 'No, Cancelar',
+      onConfirm: async () => {
+        try {
+          await deleteRental(id);
+          showAlert({
+            type: 'success',
+            title: '✅ Eliminado',
+            message: 'El registro de alquiler ha sido eliminado correctamente.'
+          });
+        } catch (err) {
+          showAlert({
+            type: 'error',
+            title: '❌ Error',
+            message: 'Error al eliminar: ' + err.message
+          });
+        }
       }
-    }
+    });
   };
 
   const handleOpenPaymentModal = async (rental) => {
@@ -359,7 +419,11 @@ export const Preview = () => {
     const amountValue = Number(additionalPaymentAmount) || 0;
     if (!selectedRentalForPayment) return;
     if (amountValue <= 0) {
-      alert("Ingrese un monto válido");
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Monto Inválido',
+        message: 'Por favor ingrese un monto válido mayor a cero.'
+      });
       return;
     }
 
@@ -370,12 +434,20 @@ export const Preview = () => {
     const isRefund = mode === 'refund';
 
     if (!isRefund && amountValue > pendingAmount) {
-      alert("El monto excede el pendiente");
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Monto Excedido',
+        message: `El monto ingresado (Bs ${amountValue}) excede el saldo pendiente (Bs ${pendingAmount}).`
+      });
       return;
     }
 
     if (isRefund && amountValue > balance) {
-      alert("El monto excede el sobrepago");
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Monto Excedido',
+        message: `El monto de devolución (Bs ${amountValue}) excede el sobrepago disponible (Bs ${balance}).`
+      });
       return;
     }
 
@@ -405,9 +477,17 @@ export const Preview = () => {
       const payments = await getPaymentsByRental(selectedRentalForPayment.id);
       setRentalPayments(payments);
 
-      alert(`${isRefund ? 'Devolución' : 'Pago'} de Bs ${amountValue} registrada exitosamente`);
+      showAlert({
+        type: 'success',
+        title: '✅ Pago Registrado',
+        message: `${isRefund ? 'Devolución' : 'Pago'} de Bs ${amountValue} registrado exitosamente.`
+      });
     } catch (err) {
-      alert("Error al registrar pago: " + err.message);
+      showAlert({
+        type: 'error',
+        title: '❌ Error de Pago',
+        message: 'Error al registrar pago: ' + err.message
+      });
     }
   };
 
@@ -416,17 +496,38 @@ export const Preview = () => {
 
     try {
       if (formData.isNewClient) {
-        if (!formData.newClientName) return alert("Ingrese nombre del cliente nuevo");
+        if (!formData.newClientName) {
+          showAlert({
+            type: 'warning',
+            title: '⚠️ Datos Incompletos',
+            message: 'Por favor ingrese el nombre del nuevo cliente.'
+          });
+          return;
+        }
         const newClient = await createClient({
           name: formData.newClientName,
           phone: formData.newClientPhone
         });
         finalClientId = newClient.id;
       } else {
-        if (!finalClientId) return alert("Seleccione un cliente");
+        if (!finalClientId) {
+          showAlert({
+            type: 'warning',
+            title: '⚠️ Cliente Requerido',
+            message: 'Por favor seleccione un cliente para el alquiler.'
+          });
+          return;
+        }
       }
 
-      if (!formData.vehicleId) return alert("Seleccione un vehículo");
+      if (!formData.vehicleId) {
+        showAlert({
+          type: 'warning',
+          title: '⚠️ Vehículo Requerido',
+          message: 'Por favor seleccione un vehículo para el alquiler.'
+        });
+        return;
+      }
 
       const rentalData = {
         clientId: finalClientId,
@@ -453,8 +554,17 @@ export const Preview = () => {
       }
 
       setIsModalOpen(false);
+      showAlert({
+        type: 'success',
+        title: '✅ Guardado Exitoso',
+        message: formData.id ? 'El contrato ha sido actualizado correctamente.' : 'El nuevo contrato ha sido creado correctamente.'
+      });
     } catch (err) {
-      alert("Error al guardar: " + err.message);
+      showAlert({
+        type: 'error',
+        title: '❌ Error al Guardar',
+        message: 'Error al guardar: ' + err.message
+      });
     }
   };
 
@@ -466,29 +576,45 @@ export const Preview = () => {
         setNewCategoryMode(false);
         setTempCategory("");
       } catch (err) {
-        alert("Error al crear categoría: " + err.message);
+        showAlert({
+          type: 'error',
+          title: '❌ Error',
+          message: 'Error al crear categoría: ' + err.message
+        });
       }
     }
   };
 
   const handleCreateVehicle = async () => {
     if (!tempVehicle.brand.trim() || !tempVehicle.model.trim() || !tempVehicle.plate.trim()) {
-      alert("Ingrese marca, modelo y placa del vehículo");
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Datos Incompletos',
+        message: 'Por favor ingrese marca, modelo y placa del vehículo.'
+      });
       return;
     }
     try {
       const newVehicle = await createVehicle(tempVehicle);
       setFormData({...formData, vehicleId: newVehicle.id});
       setNewVehicleMode(false);
-      setTempVehicle({ brand: "", model: "", size: "", plate: "" });
+      setTempVehicle({ brand: "", model: "", size: "", color: "", plate: "" });
     } catch (err) {
-      alert("Error al crear vehículo: " + err.message);
+      showAlert({
+        type: 'error',
+        title: '❌ Error',
+        message: 'Error al crear vehículo: ' + err.message
+      });
     }
   };
 
   const handleCreateDriver = async () => {
     if (!tempDriver.name.trim()) {
-      alert("Ingrese el nombre del conductor");
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Datos Incompletos',
+        message: 'Por favor ingrese el nombre del conductor.'
+      });
       return;
     }
     try {
@@ -497,7 +623,11 @@ export const Preview = () => {
       setNewDriverMode(false);
       setTempDriver({ name: "", phone: "", license: "" });
     } catch (err) {
-      alert("Error al crear conductor: " + err.message);
+      showAlert({
+        type: 'error',
+        title: '❌ Error',
+        message: 'Error al crear conductor: ' + err.message
+      });
     }
   };
 
@@ -694,8 +824,24 @@ export const Preview = () => {
           clients={clients}
           vehicles={vehicles}
           drivers={drivers}
+          showAlert={showAlert}
         />
       )}
+
+      {/* Alert Modal Global */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={closeAlert}
+        onConfirm={alertModal.onConfirm}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        confirmText={alertModal.confirmText}
+        cancelText={alertModal.cancelText}
+        showSecondaryAction={alertModal.showSecondaryAction}
+        secondaryActionText={alertModal.secondaryActionText}
+        onSecondaryAction={alertModal.onSecondaryAction}
+      />
     </div>
   );
 };
@@ -703,7 +849,7 @@ export const Preview = () => {
 /**
  * Modal para seleccionar período de exportación
  */
-const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers }) => {
+const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers, showAlert }) => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -719,18 +865,61 @@ const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers
   const monthsForYear = availablePeriods[selectedYear] || [];
 
   const handleExport = async () => {
-    if (exportType === 'general') {
-      await exportRentalsToExcel(rentals, clients, vehicles, drivers);
-    } else if (exportType === 'year') {
-      await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear);
-    } else if (exportType === 'month') {
-      if (!selectedMonth) {
-        alert('Seleccione un mes');
+    try {
+      let result;
+      if (exportType === 'general') {
+        result = await exportRentalsToExcel(rentals, clients, vehicles, drivers);
+      } else if (exportType === 'year') {
+        result = await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear);
+      } else if (exportType === 'month') {
+        if (!selectedMonth) {
+          showAlert({
+            type: 'warning',
+            title: '⚠️ Mes Requerido',
+            message: 'Por favor seleccione un mes para exportar.'
+          });
+          return;
+        }
+        result = await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear, Number(selectedMonth));
+      }
+      onClose();
+      
+      // Mostrar información de la descarga con opción de abrir
+      if (result?.downloadInfo?.method === 'cancelled') {
+        // No mostrar nada si el usuario canceló
         return;
       }
-      await exportRentalsToExcel(rentals, clients, vehicles, drivers, selectedYear, Number(selectedMonth));
+      
+      const canOpenFile = result?.downloadInfo?.canOpen && result?.downloadInfo?.fileId;
+      
+      if (result?.downloadInfo?.method === 'picker') {
+        showAlert({
+          type: 'success',
+          title: '✅ Archivo Guardado',
+          message: `El archivo "${result.fileName}" ha sido guardado exitosamente.`,
+          confirmText: 'Cerrar',
+          showSecondaryAction: canOpenFile,
+          secondaryActionText: '📂 Abrir Archivo',
+          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.downloadInfo.fileId) : null
+        });
+      } else {
+        showAlert({
+          type: 'success',
+          title: '✅ Descarga Completada',
+          message: `El archivo "${result?.fileName || 'Excel'}" se descargó en tu ${result?.downloadInfo?.path || 'carpeta de Descargas'}.`,
+          confirmText: 'Cerrar',
+          showSecondaryAction: canOpenFile,
+          secondaryActionText: '📂 Abrir Archivo',
+          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.downloadInfo.fileId) : null
+        });
+      }
+    } catch (error) {
+      showAlert({
+        type: 'error',
+        title: '❌ Error de Exportación',
+        message: error.message || 'Error al generar el reporte Excel.'
+      });
     }
-    onClose();
   };
 
   return (

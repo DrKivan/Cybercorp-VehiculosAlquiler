@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Card, Button, Badge, Input } from '../ui';
 import { Icons } from '../Icons';
 import { generateQuotationFromRental } from '../../utils/quotationPdf';
+import { openDownloadedFile } from '../../utils/fileDownload';
+import AlertModal from './AlertModal';
 
 /**
  * Rental Detail Modal - Clean modern design
@@ -20,6 +22,17 @@ export const RentalDetailModal = ({
   const [showObservationPrompt, setShowObservationPrompt] = useState(false);
   const [observations, setObservations] = useState('');
   const [quotationNumber, setQuotationNumber] = useState('');
+  
+  // Estado para AlertModal
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    showSecondaryAction: false,
+    secondaryActionText: '',
+    onSecondaryAction: null
+  });
 
   if (!isOpen || !rental) return null;
 
@@ -31,13 +44,47 @@ export const RentalDetailModal = ({
     try {
       const obs = withObservation ? observations : '';
       const quotNum = quotationNumber.trim() || null;
-      await generateQuotationFromRental(rental, clients, vehicles, drivers, obs, null, quotNum);
+      const result = await generateQuotationFromRental(rental, clients, vehicles, drivers, obs, null, quotNum);
       setShowObservationPrompt(false);
       setObservations('');
       setQuotationNumber('');
+      
+      // Mostrar modal de éxito con opción de abrir archivo
+      if (result && result.success) {
+        const fileName = result.fileName || 'cotización';
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: '¡Cotización generada!',
+          message: `"${fileName}" se guardó correctamente.`,
+          showSecondaryAction: result.canOpen && result.fileId,
+          secondaryActionText: '📂 Abrir PDF',
+          onSecondaryAction: () => {
+            if (result.fileId) {
+              openDownloadedFile(result.fileId);
+            }
+          }
+        });
+      } else if (result && result.method === 'cancelled') {
+        // Usuario canceló la descarga, no mostrar nada
+      } else {
+        setAlertModal({
+          isOpen: true,
+          type: 'warning',
+          title: 'Descarga completada',
+          message: 'El archivo se ha descargado pero no se pudo verificar la ubicación.',
+          showSecondaryAction: false
+        });
+      }
     } catch (error) {
       console.error('Error generando cotización:', error);
-      alert('Error al generar la cotización: ' + error.message);
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Error al generar la cotización: ' + error.message,
+        showSecondaryAction: false
+      });
     }
   };
 
@@ -246,6 +293,18 @@ export const RentalDetailModal = ({
           </div>
         </div>
       </div>
+
+      {/* AlertModal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        showSecondaryAction={alertModal.showSecondaryAction}
+        secondaryActionText={alertModal.secondaryActionText}
+        onSecondaryAction={alertModal.onSecondaryAction}
+      />
 
       {/* Modal de Observaciones */}
       {showObservationPrompt && (

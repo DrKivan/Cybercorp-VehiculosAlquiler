@@ -2,14 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Input, Select, Badge } from '../ui';
 import { Icons } from '../Icons';
 
-const VEHICLE_SIZES = [
-  { label: 'Compacto', value: 'Compacto' },
-  { label: 'Sedán', value: 'Sedán' },
-  { label: 'SUV', value: 'SUV' },
-  { label: 'Van', value: 'Van' },
-  { label: 'Camioneta', value: 'Camioneta' }
-];
-
 const VEHICLE_STATUSES = [
   { label: 'Disponible', value: 'available' },
   { label: 'Rentado', value: 'rented' },
@@ -109,7 +101,7 @@ export const CatalogsModal = ({
   const startCreate = (tab) => {
     setCreatingTab(tab);
     if (tab === 'clients') setCreateValues({ name: '', phone: '' });
-    if (tab === 'vehicles') setCreateValues({ brand: '', model: '', plate: '', size: '', status: 'available' });
+    if (tab === 'vehicles') setCreateValues({ brand: '', model: '', plate: '', size: '', color: '', status: 'available' });
     if (tab === 'drivers') setCreateValues({ name: '', phone: '', license: '', status: 'available' });
     if (tab === 'categories') setCreateValues({ name: '' });
   };
@@ -134,6 +126,7 @@ export const CatalogsModal = ({
           model: createValues.model.trim(),
           plate: createValues.plate.trim(),
           size: createValues.size || '',
+          color: createValues.color || '',
           status: createValues.status || 'available'
         });
       }
@@ -167,6 +160,7 @@ export const CatalogsModal = ({
         model: item.model || '',
         plate: item.plate || '',
         size: item.size || '',
+        color: item.color || '',
         status: item.status || 'available'
       });
     }
@@ -198,6 +192,7 @@ export const CatalogsModal = ({
           model: editValues.model.trim(),
           plate: editValues.plate.trim(),
           size: editValues.size || '',
+          color: editValues.color || '',
           status: editValues.status || 'available'
         });
       }
@@ -276,11 +271,17 @@ export const CatalogsModal = ({
               value={createValues.plate || ''}
               onChange={(e) => setCreateValues({ ...createValues, plate: e.target.value })}
             />
-            <Select
-              options={VEHICLE_SIZES}
+            <input
+              className="h-9 rounded-md border border-orange-200 bg-white px-3 text-sm"
+              placeholder="Tamaño (ej: SUV, Sedán, Van)"
               value={createValues.size || ''}
               onChange={(e) => setCreateValues({ ...createValues, size: e.target.value })}
-              className="bg-white"
+            />
+            <input
+              className="h-9 rounded-md border border-orange-200 bg-white px-3 text-sm"
+              placeholder="Color (ej: Blanco, Negro, Rojo)"
+              value={createValues.color || ''}
+              onChange={(e) => setCreateValues({ ...createValues, color: e.target.value })}
             />
             <Select
               options={VEHICLE_STATUSES}
@@ -435,17 +436,23 @@ export const CatalogsModal = ({
                           onChange={(e) => setEditValues({ ...editValues, model: e.target.value })}
                           placeholder="Modelo"
                         />
-                        <Select
-                          options={VEHICLE_SIZES}
+                        <input
+                          className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs"
                           value={editValues.size || ''}
                           onChange={(e) => setEditValues({ ...editValues, size: e.target.value })}
-                          className="bg-white"
+                          placeholder="Tamaño (ej: SUV, Sedán)"
+                        />
+                        <input
+                          className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs"
+                          value={editValues.color || ''}
+                          onChange={(e) => setEditValues({ ...editValues, color: e.target.value })}
+                          placeholder="Color"
                         />
                       </div>
                     ) : (
                       <div>
                         <p className="font-medium text-gray-900">{vehicle.brand} {vehicle.model}</p>
-                        <p className="text-[11px] text-gray-500">{vehicle.size || 'Sin categoria'}</p>
+                        <p className="text-[11px] text-gray-500">{vehicle.size || 'Sin tamaño'} {vehicle.color ? `- ${vehicle.color}` : ''}</p>
                       </div>
                     )}
                   </td>

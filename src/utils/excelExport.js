@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
 import { supabase } from '../lib/supabase';
+import { downloadExcel } from './fileDownload';
 
 /**
  * Obtener años y meses con registros
@@ -151,8 +151,7 @@ export const exportRentalsToExcel = async (rentals, clients, vehicles, drivers =
     }
 
     if (filteredRentals.length === 0) {
-      alert('No hay registros para exportar en el período seleccionado');
-      return;
+      throw new Error('No hay registros para exportar en el período seleccionado');
     }
 
     // Obtener pagos
@@ -582,12 +581,11 @@ export const exportRentalsToExcel = async (rentals, clients, vehicles, drivers =
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), fileName);
+    const result = await downloadExcel(buffer, fileName);
     
-    return true;
+    return { success: result.success, fileName: result.fileName, downloadInfo: result };
   } catch (error) {
     console.error('Error al exportar Excel:', error);
-    alert('Error al generar el reporte: ' + error.message);
-    return false;
+    throw error; // Re-lanzar para manejar en el componente
   }
 };

@@ -369,9 +369,20 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
 
   // ===================== DESCARGAR =====================
   const fileName = `Cotizacion_${quotationId.replace(/\//g, '-')}_${data.client?.name?.replace(/\s+/g, '_') || 'Cliente'}.pdf`;
-  doc.save(fileName);
   
-  return fileName;
+  // Importar dinámicamente para evitar dependencia circular
+  const { downloadPDF } = await import('./fileDownload');
+  const result = await downloadPDF(doc, fileName);
+  
+  // Retornar el resultado completo de la descarga
+  return {
+    success: result.success,
+    fileName: result.fileName,
+    filePath: result.path || result.message,
+    fileId: result.fileId,
+    canOpen: result.canOpen,
+    method: result.method
+  };
 };
 
 /**

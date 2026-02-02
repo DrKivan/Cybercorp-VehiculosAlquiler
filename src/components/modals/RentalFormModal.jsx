@@ -3,7 +3,9 @@ import { Card, Button, Input, Select } from '../ui';
 import { Icons } from '../Icons';
 import { MapPicker } from '../MapPicker';
 import { generateQuotationFromForm } from '../../utils/quotationPdf';
+import { openDownloadedFile } from '../../utils/fileDownload';
 import { supabase } from '../../lib/supabase';
+import { AlertModal } from './AlertModal';
 
 /**
  * Rental Form Modal - Create/Edit rental contracts
@@ -51,6 +53,49 @@ export const RentalFormModal = ({
   const [destinationLinkInput, setDestinationLinkInput] = useState('');
   const [linkLoading, setLinkLoading] = useState({ pickup: false, destination: false });
   const [linkError, setLinkError] = useState({ pickup: '', destination: '' });
+  
+  // Alert Modal State
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    confirmText: 'Aceptar',
+    cancelText: 'Cancelar',
+    onConfirm: null,
+    showSecondaryAction: false,
+    secondaryActionText: 'Abrir Archivo',
+    onSecondaryAction: null
+  });
+  
+  const showAlert = ({ 
+    type = 'info', 
+    title, 
+    message, 
+    confirmText = 'Aceptar', 
+    cancelText = 'Cancelar', 
+    onConfirm = null,
+    showSecondaryAction = false,
+    secondaryActionText = 'Abrir Archivo',
+    onSecondaryAction = null
+  }) => {
+    setAlertModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      onConfirm,
+      showSecondaryAction,
+      secondaryActionText,
+      onSecondaryAction
+    });
+  };
+  
+  const closeAlert = () => {
+    setAlertModal(prev => ({ ...prev, isOpen: false }));
+  };
 
   /**
    * Parsear coordenadas de una URL de Google Maps
@@ -245,13 +290,36 @@ export const RentalFormModal = ({
     try {
       const obs = withObservation ? observations : '';
       const quotNum = quotationNumber.trim() || null;
-      await generateQuotationFromForm(formData, clients, vehicles, drivers, obs, null, quotNum);
+      const result = await generateQuotationFromForm(formData, clients, vehicles, drivers, obs, null, quotNum);
       setShowObservationPrompt(false);
       setObservations('');
       setQuotationNumber('');
+      
+      // No mostrar nada si el usuario canceló
+      if (result?.method === 'cancelled') {
+        return;
+      }
+      
+      // Mostrar información de la descarga con opción de abrir
+      if (result?.success) {
+        const canOpenFile = result?.canOpen && result?.fileId;
+        showAlert({
+          type: 'success',
+          title: '✅ Cotización Guardada',
+          message: `"${result.fileName}" se guardó correctamente.`,
+          confirmText: 'Cerrar',
+          showSecondaryAction: canOpenFile,
+          secondaryActionText: '📄 Abrir PDF',
+          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.fileId) : null
+        });
+      }
     } catch (error) {
       console.error('Error generando cotización:', error);
-      alert('Error al generar la cotización: ' + error.message);
+      showAlert({
+        type: 'error',
+        title: '❌ Error de Cotización',
+        message: 'Error al generar la cotización: ' + error.message
+      });
     }
   };
 
@@ -515,21 +583,12 @@ export const RentalFormModal = ({
                       <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
                         <Input placeholder="Marca (ej: Toyota)" value={tempVehicle.brand} onChange={(e) => setTempVehicle({...tempVehicle, brand: e.target.value})} autoFocus />
                         <Input placeholder="Modelo (ej: Hilux)" value={tempVehicle.model} onChange={(e) => setTempVehicle({...tempVehicle, model: e.target.value})} />
-                        <Select 
-                          options={[
-                            { label: 'Compacto', value: 'Compacto' },
-                            { label: 'Sedán', value: 'Sedán' },
-                            { label: 'SUV', value: 'SUV' },
-                            { label: 'Van', value: 'Van' },
-                            { label: 'Camioneta', value: 'Camioneta' }
-                          ]}
-                          value={tempVehicle.size}
-                          onChange={(e) => setTempVehicle({...tempVehicle, size: e.target.value})}
-                        />
+                        <Input placeholder="Tamaño (ej: SUV, Sedán, Van)" value={tempVehicle.size} onChange={(e) => setTempVehicle({...tempVehicle, size: e.target.value})} />
+                        <Input placeholder="Color (ej: Blanco, Negro, Rojo)" value={tempVehicle.color} onChange={(e) => setTempVehicle({...tempVehicle, color: e.target.value})} />
                         <Input placeholder="Placa (ej: ABC-123)" value={tempVehicle.plate} onChange={(e) => setTempVehicle({...tempVehicle, plate: e.target.value})} />
                         <div className="flex gap-2">
                           <Button variant="primary" onClick={onCreateVehicle} className="flex-1">Guardar</Button>
-                          <Button variant="outline" onClick={() => { setNewVehicleMode(false); setTempVehicle({ brand: "", model: "", size: "", plate: "" }); }}>Cancelar</Button>
+                          <Button variant="outline" onClick={() => { setNewVehicleMode(false); setTempVehicle({ brand: "", model: "", size: "", color: "", plate: "" }); }}>Cancelar</Button>
                         </div>
                       </div>
                     )}
@@ -658,12 +717,20 @@ export const RentalFormModal = ({
                     }
                     // Validar conflicto de vehículo
                     if (formData.vehicleId && conflictingVehicleIds.includes(Number(formData.vehicleId))) {
-                      alert('El vehículo seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro vehículo.');
+                      showAlert({
+                        type: 'warning',
+                        title: '⚠️ Conflicto de Vehículo',
+                        message: 'El vehículo seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro vehículo.'
+                      });
                       return;
                     }
                     // Validar conflicto de conductor
                     if (formData.driverId && conflictingDriverIds.includes(Number(formData.driverId))) {
-                      alert('El conductor seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro conductor.');
+                      showAlert({
+                        type: 'warning',
+                        title: '⚠️ Conflicto de Conductor',
+                        message: 'El conductor seleccionado ya tiene una reserva en ese horario. Por favor, seleccione otro conductor.'
+                      });
                       return;
                     }
                     onSave();
@@ -781,6 +848,21 @@ export const RentalFormModal = ({
           </Card>
         </div>
       )}
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={closeAlert}
+        onConfirm={alertModal.onConfirm}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        confirmText={alertModal.confirmText}
+        cancelText={alertModal.cancelText}
+        showSecondaryAction={alertModal.showSecondaryAction}
+        secondaryActionText={alertModal.secondaryActionText}
+        onSecondaryAction={alertModal.onSecondaryAction}
+      />
 
     </div>
   );
