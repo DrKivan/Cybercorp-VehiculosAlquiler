@@ -3,7 +3,6 @@ import { Card, Button, Input, Select } from '../ui';
 import { Icons } from '../Icons';
 import { MapPicker } from '../MapPicker';
 import { generateQuotationFromForm } from '../../utils/quotationPdf';
-import { openDownloadedFile } from '../../utils/fileDownload';
 import { supabase } from '../../lib/supabase';
 import { AlertModal } from './AlertModal';
 
@@ -62,10 +61,7 @@ export const RentalFormModal = ({
     message: '',
     confirmText: 'Aceptar',
     cancelText: 'Cancelar',
-    onConfirm: null,
-    showSecondaryAction: false,
-    secondaryActionText: 'Abrir Archivo',
-    onSecondaryAction: null
+    onConfirm: null
   });
   
   const showAlert = ({ 
@@ -74,10 +70,7 @@ export const RentalFormModal = ({
     message, 
     confirmText = 'Aceptar', 
     cancelText = 'Cancelar', 
-    onConfirm = null,
-    showSecondaryAction = false,
-    secondaryActionText = 'Abrir Archivo',
-    onSecondaryAction = null
+    onConfirm = null
   }) => {
     setAlertModal({
       isOpen: true,
@@ -86,10 +79,7 @@ export const RentalFormModal = ({
       message,
       confirmText,
       cancelText,
-      onConfirm,
-      showSecondaryAction,
-      secondaryActionText,
-      onSecondaryAction
+      onConfirm
     });
   };
   
@@ -260,9 +250,7 @@ export const RentalFormModal = ({
 
   const selectedDriver = normalizedDrivers.find(d => d.id === Number(formData.driverId));
   const activeDrivers = normalizedDrivers.filter(d => d.is_active !== false);
-  const driverOptions = [
-    { label: "Sin Chofer", value: "", disabled: false },
-    ...activeDrivers.map(d => {
+  const driverOptions = [...activeDrivers.map(d => {
       const isConflict = conflictingDriverIds.includes(d.id);
       const isInactive = d.is_active === false;
       let label = d.name;
@@ -295,22 +283,13 @@ export const RentalFormModal = ({
       setObservations('');
       setQuotationNumber('');
       
-      // No mostrar nada si el usuario canceló
-      if (result?.method === 'cancelled') {
-        return;
-      }
-      
-      // Mostrar información de la descarga con opción de abrir
+      // Mostrar confirmación simple
       if (result?.success) {
-        const canOpenFile = result?.canOpen && result?.fileId;
         showAlert({
           type: 'success',
-          title: '✅ Cotización Guardada',
-          message: `"${result.fileName}" se guardó correctamente.`,
-          confirmText: 'Cerrar',
-          showSecondaryAction: canOpenFile,
-          secondaryActionText: '📄 Abrir PDF',
-          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.fileId) : null
+          title: '✅ Cotización Generada',
+          message: `"${result.fileName}" se descargó correctamente.`,
+          confirmText: 'Aceptar'
         });
       }
     } catch (error) {

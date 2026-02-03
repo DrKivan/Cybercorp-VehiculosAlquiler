@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { exportRentalsToExcel, getAvailablePeriodsFromRentals, MONTH_NAMES } from '../utils/excelExport';
-import { openDownloadedFile } from '../utils/fileDownload';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 
 // Import all components
@@ -693,6 +692,15 @@ export const Preview = () => {
               <p className="text-sm text-gray-500">Gestión de contratos activos y reservas.</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Botón Actualizar */}
+              <Button 
+                onClick={refresh} 
+                variant="outline" 
+                icon={Icons.RefreshCw}
+                title="Actualizar datos"
+              >
+                Actualizar
+              </Button>
               {/* Calendario Dropdown */}
               <CalendarWidget 
                 calendarDays={calendarDays}
@@ -884,33 +892,13 @@ const ExportExcelModal = ({ isOpen, onClose, rentals, clients, vehicles, drivers
       }
       onClose();
       
-      // Mostrar información de la descarga con opción de abrir
-      if (result?.downloadInfo?.method === 'cancelled') {
-        // No mostrar nada si el usuario canceló
-        return;
-      }
-      
-      const canOpenFile = result?.downloadInfo?.canOpen && result?.downloadInfo?.fileId;
-      
-      if (result?.downloadInfo?.method === 'picker') {
+      // Mostrar confirmación simple
+      if (result?.success) {
         showAlert({
           type: 'success',
-          title: '✅ Archivo Guardado',
-          message: `El archivo "${result.fileName}" ha sido guardado exitosamente.`,
-          confirmText: 'Cerrar',
-          showSecondaryAction: canOpenFile,
-          secondaryActionText: '📂 Abrir Archivo',
-          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.downloadInfo.fileId) : null
-        });
-      } else {
-        showAlert({
-          type: 'success',
-          title: '✅ Descarga Completada',
-          message: `El archivo "${result?.fileName || 'Excel'}" se descargó en tu ${result?.downloadInfo?.path || 'carpeta de Descargas'}.`,
-          confirmText: 'Cerrar',
-          showSecondaryAction: canOpenFile,
-          secondaryActionText: '📂 Abrir Archivo',
-          onSecondaryAction: canOpenFile ? () => openDownloadedFile(result.downloadInfo.fileId) : null
+          title: '✅ Excel Generado',
+          message: `"${result.fileName}" se descargó correctamente.`,
+          confirmText: 'Aceptar'
         });
       }
     } catch (error) {

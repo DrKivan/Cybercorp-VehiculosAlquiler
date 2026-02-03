@@ -374,14 +374,10 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
   const { downloadPDF } = await import('./fileDownload');
   const result = await downloadPDF(doc, fileName);
   
-  // Retornar el resultado completo de la descarga
+  // Retornar resultado simple
   return {
     success: result.success,
-    fileName: result.fileName,
-    filePath: result.path || result.message,
-    fileId: result.fileId,
-    canOpen: result.canOpen,
-    method: result.method
+    fileName: result.fileName
   };
 };
 

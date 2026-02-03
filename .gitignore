@@ -7,9 +7,31 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
+
+# Environment variables (IMPORTANTE: credenciales)
+.env
+.env.*
+!.env.example
+
+# Tauri executables
+*.exe
+*.dmg
+*.app
+*.deb
+*.rpm
+*.AppImage
+
+# Lock files de otros gestores
+package-lock.json
+yarn.lock
+
+# Local files
 *.local
 
 # Editor directories and files

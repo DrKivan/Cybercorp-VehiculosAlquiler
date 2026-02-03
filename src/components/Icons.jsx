@@ -109,6 +109,12 @@ export const Icons = {
       <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h4" />
     </svg>
+  ),
+
+  RefreshCw: (props) => (
+    <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
   )
 };
 

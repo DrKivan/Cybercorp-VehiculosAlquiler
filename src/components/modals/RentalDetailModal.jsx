@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Card, Button, Badge, Input } from '../ui';
 import { Icons } from '../Icons';
 import { generateQuotationFromRental } from '../../utils/quotationPdf';
-import { openDownloadedFile } from '../../utils/fileDownload';
 import AlertModal from './AlertModal';
 
 /**
@@ -28,10 +27,7 @@ export const RentalDetailModal = ({
     isOpen: false,
     type: 'info',
     title: '',
-    message: '',
-    showSecondaryAction: false,
-    secondaryActionText: '',
-    onSecondaryAction: null
+    message: ''
   });
 
   if (!isOpen || !rental) return null;
@@ -49,31 +45,13 @@ export const RentalDetailModal = ({
       setObservations('');
       setQuotationNumber('');
       
-      // Mostrar modal de éxito con opción de abrir archivo
-      if (result && result.success) {
-        const fileName = result.fileName || 'cotización';
+      // Mostrar confirmación simple
+      if (result?.success) {
         setAlertModal({
           isOpen: true,
           type: 'success',
-          title: '¡Cotización generada!',
-          message: `"${fileName}" se guardó correctamente.`,
-          showSecondaryAction: result.canOpen && result.fileId,
-          secondaryActionText: '📂 Abrir PDF',
-          onSecondaryAction: () => {
-            if (result.fileId) {
-              openDownloadedFile(result.fileId);
-            }
-          }
-        });
-      } else if (result && result.method === 'cancelled') {
-        // Usuario canceló la descarga, no mostrar nada
-      } else {
-        setAlertModal({
-          isOpen: true,
-          type: 'warning',
-          title: 'Descarga completada',
-          message: 'El archivo se ha descargado pero no se pudo verificar la ubicación.',
-          showSecondaryAction: false
+          title: '✅ Cotización Generada',
+          message: `"${result.fileName}" se descargó correctamente.`
         });
       }
     } catch (error) {
@@ -82,8 +60,7 @@ export const RentalDetailModal = ({
         isOpen: true,
         type: 'error',
         title: 'Error',
-        message: 'Error al generar la cotización: ' + error.message,
-        showSecondaryAction: false
+        message: 'Error al generar la cotización: ' + error.message
       });
     }
   };

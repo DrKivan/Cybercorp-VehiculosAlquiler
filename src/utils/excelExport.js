@@ -583,7 +583,7 @@ export const exportRentalsToExcel = async (rentals, clients, vehicles, drivers =
     const buffer = await workbook.xlsx.writeBuffer();
     const result = await downloadExcel(buffer, fileName);
     
-    return { success: result.success, fileName: result.fileName, downloadInfo: result };
+    return { success: result.success, fileName: result.fileName };
   } catch (error) {
     console.error('Error al exportar Excel:', error);
     throw error; // Re-lanzar para manejar en el componente
