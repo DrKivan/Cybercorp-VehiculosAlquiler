@@ -23,17 +23,17 @@ import {
  * Header Component
  */
 const Header = ({ onOpenCatalogs }) => (
-  <header className="bg-gradient-to-r from-orange-50 via-white to-purple-50 border-b border-orange-100/60 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-md backdrop-blur">
+  <header className="bg-gray-900 border-b border-gray-800 h-24 flex items-center justify-between px-6 sticky top-0 z-20 shadow-lg">
     <div className="flex items-center gap-3">
-      
-          <img src="/fenix_cars_rentals.ico" alt="FenixCars Logo" className="h-28 w-auto mt-4" />
-      
-      <h1 className="text-xl font-extrabold tracking-tight text-gray-900">
+      <div className="p-2">
+        <img src="/clasic_cars_logo.png" alt="Classic Cars Logo" className="h-20 w-auto rounded-full" />
+      </div>
+      <h1 className="text-xl font-extrabold tracking-tight text-white">
         <span className="text-gray-400 font-semibold text-sm ml-3">Gestión v1.0</span>
       </h1>
     </div>
     <div className="flex items-center gap-3">
-      <Button variant="outline" icon={Icons.Settings} onClick={onOpenCatalogs}>
+      <Button variant="outline" icon={Icons.Settings} onClick={onOpenCatalogs} className="border-gray-600 text-white hover:bg-gray-800">
         Catalogos
       </Button>
     </div>

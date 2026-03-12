@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Input, Select, Badge } from '../ui';
 import { Icons } from '../Icons';
+import { companyService } from '../../services';
 
 const VEHICLE_STATUSES = [
   { label: 'Disponible', value: 'available' },
@@ -38,6 +39,13 @@ export const CatalogsModal = ({
   const [editingTab, setEditingTab] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
+  
+  // Estados para la configuración de empresa
+  const [companySettings, setCompanySettings] = useState(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companyError, setCompanyError] = useState('');
+  const [companySuccess, setCompanySuccess] = useState('');
 
   const normalizedClients = Array.isArray(clients) ? clients : [];
   const normalizedVehicles = Array.isArray(vehicles) ? vehicles : [];
@@ -53,13 +61,53 @@ export const CatalogsModal = ({
     setEditingId(null);
     setCreateValues({});
     setEditValues({});
+    setCompanyError('');
+    setCompanySuccess('');
+    
+    // Cargar datos de empresa cuando se seleccione el tab
+    if (activeTab === 'company' && !companySettings) {
+      loadCompanySettings();
+    }
   }, [activeTab]);
+
+  const loadCompanySettings = async () => {
+    setCompanyLoading(true);
+    setCompanyError('');
+    try {
+      const settings = await companyService.getSettings();
+      setCompanySettings(settings);
+    } catch (error) {
+      setCompanyError('Error al cargar configuración: ' + error.message);
+    } finally {
+      setCompanyLoading(false);
+    }
+  };
+
+  const saveCompanySettings = async () => {
+    setCompanySaving(true);
+    setCompanyError('');
+    setCompanySuccess('');
+    try {
+      await companyService.updateSettings(companySettings);
+      setCompanySuccess('Configuración guardada correctamente');
+      setTimeout(() => setCompanySuccess(''), 3000);
+    } catch (error) {
+      setCompanyError('Error al guardar: ' + error.message);
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+  const updateCompanyField = (field, value) => {
+    setCompanySettings(prev => ({ ...prev, [field]: value }));
+  };
 
   const tabs = [
     { id: 'clients', label: 'Clientes', icon: Icons.User },
     { id: 'vehicles', label: 'Vehiculos', icon: Icons.Car },
     { id: 'drivers', label: 'Conductores', icon: Icons.User },
-    { id: 'categories', label: 'Categorias', icon: Icons.FileText }
+    { id: 'categories', label: 'Categorias', icon: Icons.FileText },
+    { id: 'company', label: 'Empresa', icon: Icons.Settings }
   ];
 
   const filteredClients = useMemo(() => {
@@ -702,31 +750,193 @@ export const CatalogsModal = ({
           </div>
 
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex-1 min-w-[200px]">
-                <Input
-                  placeholder={`Buscar en ${tabs.find(tab => tab.id === activeTab)?.label || ''}`}
-                  icon={Icons.Search}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="outline"
-                className="h-9"
-                onClick={() => startCreate(activeTab)}
-              >
-                Nuevo
-              </Button>
-            </div>
+            {activeTab === 'company' ? (
+              /* Formulario de configuración de empresa */
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-bold text-gray-900">Configuración de Empresa</h4>
+                  {companySuccess && (
+                    <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">{companySuccess}</span>
+                  )}
+                </div>
+                
+                {companyLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                    <span className="ml-3 text-gray-600">Cargando configuración...</span>
+                  </div>
+                ) : companyError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                    {companyError}
+                    <button onClick={loadCompanySettings} className="ml-2 underline">Reintentar</button>
+                  </div>
+                ) : companySettings ? (
+                  <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+                    {/* Información básica */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Información Básica</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                          label="Nombre de la Empresa"
+                          value={companySettings.name || ''}
+                          onChange={(e) => updateCompanyField('name', e.target.value)}
+                        />
+                        <Input
+                          label="Nombre Corto"
+                          value={companySettings.shortName || ''}
+                          onChange={(e) => updateCompanyField('shortName', e.target.value)}
+                        />
+                        <Input
+                          label="Slogan"
+                          value={companySettings.slogan || ''}
+                          onChange={(e) => updateCompanyField('slogan', e.target.value)}
+                        />
+                        <Input
+                          label="NIT"
+                          value={companySettings.nit || ''}
+                          onChange={(e) => updateCompanyField('nit', e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-            {renderCreateForm()}
+                    {/* Ubicación y Contacto */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Ubicación y Contacto</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Dirección"
+                            value={companySettings.address || ''}
+                            onChange={(e) => updateCompanyField('address', e.target.value)}
+                          />
+                        </div>
+                        <Input
+                          label="Ciudad"
+                          value={companySettings.city || ''}
+                          onChange={(e) => updateCompanyField('city', e.target.value)}
+                        />
+                        <Input
+                          label="Correo Electrónico"
+                          type="email"
+                          value={companySettings.email || ''}
+                          onChange={(e) => updateCompanyField('email', e.target.value)}
+                        />
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Teléfonos (separados por coma)"
+                            value={(companySettings.phones || []).join(', ')}
+                            onChange={(e) => updateCompanyField('phones', e.target.value.split(',').map(p => p.trim()).filter(p => p))}
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="max-h-[55vh] overflow-y-auto">
-                {renderTable()}
+                    {/* Datos Bancarios */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Datos Bancarios</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                          label="Nombre del Banco"
+                          value={companySettings.bankName || ''}
+                          onChange={(e) => updateCompanyField('bankName', e.target.value)}
+                        />
+                        <Input
+                          label="Tipo de Cuenta"
+                          value={companySettings.bankAccountType || ''}
+                          onChange={(e) => updateCompanyField('bankAccountType', e.target.value)}
+                          placeholder="Ej: Cuenta Corriente, Caja de Ahorro"
+                        />
+                        <Input
+                          label="Número de Cuenta"
+                          value={companySettings.bankAccountNumber || ''}
+                          onChange={(e) => updateCompanyField('bankAccountNumber', e.target.value)}
+                        />
+                        <Input
+                          label="Titular de la Cuenta"
+                          value={companySettings.bankAccountHolder || ''}
+                          onChange={(e) => updateCompanyField('bankAccountHolder', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Configuración de Cotizaciones */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Configuración de Cotizaciones</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                          label="Prefijo de Cotización"
+                          value={companySettings.quotationPrefix || ''}
+                          onChange={(e) => updateCompanyField('quotationPrefix', e.target.value)}
+                          placeholder="Ej: COT"
+                        />
+                        <Input
+                          label="Días de Validez"
+                          type="number"
+                          min="1"
+                          value={companySettings.quotationValidityDays || 2}
+                          onChange={(e) => updateCompanyField('quotationValidityDays', parseInt(e.target.value) || 2)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Condiciones del Servicio */}
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <h5 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Condiciones del Servicio</h5>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-600">Una condición por línea</label>
+                        <textarea
+                          className="w-full h-32 rounded-md border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-orange-600"
+                          value={(companySettings.serviceConditions || []).join('\n')}
+                          onChange={(e) => updateCompanyField('serviceConditions', e.target.value.split('\n').filter(c => c.trim()))}
+                          placeholder="El alquiler mínimo es de 2 horas.&#10;Las horas adicionales se cobrarán a razón de Bs. 500 por hora.&#10;..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Botón Guardar */}
+                    <div className="flex justify-end pt-4 border-t border-gray-200">
+                      <Button
+                        variant="primary"
+                        onClick={saveCompanySettings}
+                        disabled={companySaving}
+                        className="px-6"
+                      >
+                        {companySaving ? 'Guardando...' : 'Guardar Configuración'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            </div>
+            ) : (
+              /* Catálogos normales (Clientes, Vehículos, etc.) */
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex-1 min-w-[200px]">
+                    <Input
+                      placeholder={`Buscar en ${tabs.find(tab => tab.id === activeTab)?.label || ''}`}
+                      icon={Icons.Search}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => startCreate(activeTab)}
+                  >
+                    Nuevo
+                  </Button>
+                </div>
+
+                {renderCreateForm()}
+
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="max-h-[55vh] overflow-y-auto">
+                    {renderTable()}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </Card>

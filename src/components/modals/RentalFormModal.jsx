@@ -64,6 +64,14 @@ export const RentalFormModal = ({
     onConfirm: null
   });
   
+  // Estado para validación de campos obligatorios
+  const [validationErrors, setValidationErrors] = useState({
+    clientId: false,
+    category: false,
+    vehicleId: false,
+    driverId: false
+  });
+  
   const showAlert = ({ 
     type = 'info', 
     title, 
@@ -271,6 +279,34 @@ export const RentalFormModal = ({
   if (!isOpen) return null;
 
   const handleDownloadQuotation = () => {
+    // Validar campos obligatorios antes de descargar cotización
+    const needsClient = !formData.isNewClient && (!formData.clientId || formData.clientId === '');
+    const needsNewClientName = formData.isNewClient && (!formData.newClientName || formData.newClientName.trim() === '');
+    
+    const errors = {
+      clientId: needsClient || needsNewClientName,
+      category: !formData.category || formData.category === '',
+      vehicleId: !formData.vehicleId || formData.vehicleId === '',
+      driverId: !formData.driverId || formData.driverId === ''
+    };
+    
+    setValidationErrors(errors);
+    
+    if (errors.clientId || errors.category || errors.vehicleId || errors.driverId) {
+      const missingFields = [];
+      if (errors.clientId) missingFields.push('Cliente');
+      if (errors.category) missingFields.push('Categoría de Evento');
+      if (errors.vehicleId) missingFields.push('Vehículo');
+      if (errors.driverId) missingFields.push('Chofer');
+      
+      showAlert({
+        type: 'warning',
+        title: '⚠️ Campos Requeridos',
+        message: `Para generar la cotización debe seleccionar: ${missingFields.join(', ')}`
+      });
+      return;
+    }
+    
     setShowObservationPrompt(true);
   };
 
@@ -334,7 +370,7 @@ export const RentalFormModal = ({
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-gray-900 border-b pb-1 border-gray-100 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">1</span>
-                Datos del Cliente
+                Datos del Cliente {validationErrors.clientId && <span className="text-red-500 text-xs">(Requerido)</span>}
               </h4>
               
               {/* Selector: Cliente Nuevo vs Existente */}
@@ -360,14 +396,17 @@ export const RentalFormModal = ({
               </div>
 
               {/* Formulario Cliente Dinámico */}
-              <div className="bg-gray-50 p-4 rounded-md border border-gray-200 transition-all">
+              <div className={`bg-gray-50 p-4 rounded-md border transition-all ${validationErrors.clientId ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                   {!formData.isNewClient ? (
                       <Select 
                          label="Seleccionar Cliente" 
-                         className="bg-white"
+                         className={`bg-white ${validationErrors.clientId ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                          options={clientOptions}
                          value={formData.clientId}
-                         onChange={(e) => setFormData({...formData, clientId: Number(e.target.value)})}
+                         onChange={(e) => {
+                           setFormData({...formData, clientId: Number(e.target.value)});
+                           if (e.target.value) setValidationErrors(prev => ({...prev, clientId: false}));
+                         }}
                       />
                   ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in">
@@ -375,7 +414,11 @@ export const RentalFormModal = ({
                             label="Nombre Completo" 
                             placeholder="Ej. Juan Perez" 
                             value={formData.newClientName}
-                            onChange={e => setFormData({...formData, newClientName: e.target.value})}
+                            onChange={e => {
+                              setFormData({...formData, newClientName: e.target.value});
+                              if (e.target.value.trim()) setValidationErrors(prev => ({...prev, clientId: false}));
+                            }}
+                            error={validationErrors.clientId && !formData.newClientName?.trim() ? 'Requerido' : ''}
                           />
                           <Input 
                             label="Teléfono / Celular" 
@@ -397,13 +440,17 @@ export const RentalFormModal = ({
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5 w-full">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Categoría Evento</label>
+                  <label className={`text-xs font-semibold uppercase tracking-wider ${validationErrors.category ? 'text-red-600' : 'text-gray-600'}`}>Categoría Evento {validationErrors.category && <span className="text-red-500">*</span>}</label>
                   {!newCategoryMode ? (
                     <div className="flex gap-2">
                         <Select 
                           options={categoryOptions}
                           value={formData.category}
-                          onChange={(e) => setFormData({...formData, category: e.target.value})}
+                          onChange={(e) => {
+                            setFormData({...formData, category: e.target.value});
+                            if (e.target.value) setValidationErrors(prev => ({...prev, category: false}));
+                          }}
+                          className={validationErrors.category ? 'border-red-500 ring-1 ring-red-500' : ''}
                         />
                         <Button variant="outline" onClick={() => setNewCategoryMode(true)} className="px-3">+</Button>
                     </div>
@@ -545,16 +592,20 @@ export const RentalFormModal = ({
                <div className="space-y-3">
                   <h4 className="text-sm font-bold text-gray-900 border-b pb-1 border-gray-100 flex items-center gap-2">
                     <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">3</span>
-                    Vehículo
+                    Vehículo {validationErrors.vehicleId && <span className="text-red-500 text-xs">(Requerido)</span>}
                   </h4>
                   <div className="space-y-1.5 w-full">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Seleccionar Unidad</label>
+                    <label className={`text-xs font-semibold uppercase tracking-wider ${validationErrors.vehicleId ? 'text-red-600' : 'text-gray-600'}`}>Seleccionar Unidad {validationErrors.vehicleId && <span className="text-red-500">*</span>}</label>
                     {!newVehicleMode ? (
                       <div className="flex gap-2">
                         <Select 
                           options={vehicleOptions} 
                           value={formData.vehicleId}
-                          onChange={e => setFormData({...formData, vehicleId: e.target.value})}
+                          onChange={e => {
+                            setFormData({...formData, vehicleId: e.target.value});
+                            if (e.target.value) setValidationErrors(prev => ({...prev, vehicleId: false}));
+                          }}
+                          className={validationErrors.vehicleId ? 'border-red-500 ring-1 ring-red-500' : ''}
                         />
                         <Button variant="outline" onClick={() => setNewVehicleMode(true)} className="px-3">+</Button>
                       </div>
@@ -576,16 +627,20 @@ export const RentalFormModal = ({
                <div className="space-y-3">
                   <h4 className="text-sm font-bold text-gray-900 border-b pb-1 border-gray-100 flex items-center gap-2">
                     <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs">4</span>
-                    Chofer
+                    Chofer {validationErrors.driverId && <span className="text-red-500 text-xs">(Requerido)</span>}
                   </h4>
                   <div className="space-y-1.5 w-full">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Asignar Conductor</label>
+                    <label className={`text-xs font-semibold uppercase tracking-wider ${validationErrors.driverId ? 'text-red-600' : 'text-gray-600'}`}>Asignar Conductor {validationErrors.driverId && <span className="text-red-500">*</span>}</label>
                     {!newDriverMode ? (
                       <div className="flex gap-2">
                         <Select 
                           options={driverOptions} 
                           value={formData.driverId}
-                          onChange={e => setFormData({...formData, driverId: e.target.value})}
+                          onChange={e => {
+                            setFormData({...formData, driverId: e.target.value});
+                            if (e.target.value) setValidationErrors(prev => ({...prev, driverId: false}));
+                          }}
+                          className={validationErrors.driverId ? 'border-red-500 ring-1 ring-red-500' : ''}
                         />
                         <Button variant="outline" onClick={() => setNewDriverMode(true)} className="px-3">+</Button>
                       </div>
@@ -694,6 +749,35 @@ export const RentalFormModal = ({
                     if (!validateTimes()) {
                       return;
                     }
+                    
+                    // Validar campos obligatorios: cliente, categoría evento, vehículo y chofer
+                    const needsClient = !formData.isNewClient && (!formData.clientId || formData.clientId === '');
+                    const needsNewClientName = formData.isNewClient && (!formData.newClientName || formData.newClientName.trim() === '');
+                    
+                    const errors = {
+                      clientId: needsClient || needsNewClientName,
+                      category: !formData.category || formData.category === '',
+                      vehicleId: !formData.vehicleId || formData.vehicleId === '',
+                      driverId: !formData.driverId || formData.driverId === ''
+                    };
+                    
+                    setValidationErrors(errors);
+                    
+                    if (errors.clientId || errors.category || errors.vehicleId || errors.driverId) {
+                      const missingFields = [];
+                      if (errors.clientId) missingFields.push('Cliente');
+                      if (errors.category) missingFields.push('Categoría de Evento');
+                      if (errors.vehicleId) missingFields.push('Vehículo');
+                      if (errors.driverId) missingFields.push('Chofer');
+                      
+                      showAlert({
+                        type: 'warning',
+                        title: '⚠️ Campos Requeridos',
+                        message: `Por favor seleccione: ${missingFields.join(', ')}`
+                      });
+                      return;
+                    }
+                    
                     // Validar conflicto de vehículo
                     if (formData.vehicleId && conflictingVehicleIds.includes(Number(formData.vehicleId))) {
                       showAlert({

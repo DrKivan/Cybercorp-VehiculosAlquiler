@@ -242,6 +242,11 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
   // Formatear fecha del servicio: "07 DE FEBRERO DE 2026"
   const formattedServiceDate = formatDateSpanishUppercase(data.service?.date);
 
+  // Construir nombre completo del evento (categoría + nombre)
+  const eventDisplayName = data.service?.eventName 
+    ? (data.service?.category ? `${data.service.category} - ${data.service.eventName}` : data.service.eventName)
+    : (data.service?.category || 'Por confirmar');
+
   autoTable(doc, {
     startY: yPos,
     margin: { left: margin, right: margin },
@@ -252,6 +257,7 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
       1: { cellWidth: 'auto' }
     },
     body: [
+      ['NOMBRE DEL EVENTO:', eventDisplayName],
       ['FECHA DEL SERVICIO:', formattedServiceDate],
       ['HORA DE INICIO DEL SERVICIO:', data.service?.startTime || 'Por confirmar'],
       ['HORA FIN DEL SERVICIO:', data.service?.endTime || 'Por confirmar'],
@@ -311,8 +317,39 @@ export const generateQuotationPDF = async (data, quotationNumber = null, company
   drawSectionHeader(doc, 'FORMA DE PAGO', margin, yPos, pageWidth);
   yPos += 5;
 
-  // Crear tabla de métodos de pago con checkboxes dibujados manualmente
-  const paymentMethods = company.paymentMethods || [];
+  // Construir métodos de pago dinámicamente usando los campos de la DB
+  // Si hay datos bancarios individuales, construir la info de transferencia con ellos
+  const bankInfo = company.bankName && company.bankAccountNumber
+    ? `${company.bankName} - ${company.bankAccountType || 'CUENTA'} - ${company.bankAccountNumber}${company.bankAccountHolder ? ` - ${company.bankAccountHolder}` : ''}`
+    : null;
+  
+  // Usar paymentMethods de la DB, pero actualizar la info de transferencia bancaria si hay datos
+  let paymentMethods = company.paymentMethods || [];
+  
+  // Si hay datos bancarios individuales configurados, actualizarlos en el método de pago
+  if (bankInfo) {
+    paymentMethods = paymentMethods.map(method => {
+      if (method.id === 'bank_transfer' || method.label?.toLowerCase().includes('transferencia')) {
+        return { ...method, info: bankInfo };
+      }
+      return method;
+    });
+    
+    // Si no existe método de transferencia pero hay datos bancarios, agregarlo
+    const hasTransfer = paymentMethods.some(m => m.id === 'bank_transfer' || m.label?.toLowerCase().includes('transferencia'));
+    if (!hasTransfer) {
+      paymentMethods.push({ id: 'bank_transfer', label: 'Transferencia Bancaria', info: bankInfo });
+    }
+  }
+  
+  // Si no hay métodos de pago, usar valores por defecto
+  if (paymentMethods.length === 0) {
+    paymentMethods = [
+      { id: 'cash', label: 'Efectivo', info: company.address || 'Oficina' },
+      { id: 'bank_transfer', label: 'Transferencia Bancaria', info: bankInfo || 'Solicitar datos' },
+      { id: 'qr', label: 'QR', info: 'Solicitar a Administración' }
+    ];
+  }
   
   autoTable(doc, {
     startY: yPos,

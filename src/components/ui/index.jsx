@@ -60,12 +60,12 @@ export const Input = ({ label, error, icon: Icon, className = "", rightElement, 
 /**
  * Select Component
  */
-export const Select = ({ label, options, className = "", ...props }) => (
+export const Select = ({ label, options, className = "", error, ...props }) => (
   <div className="space-y-1.5 w-full">
     {label && <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">{label}</label>}
     <div className="relative">
       <select 
-        className={`flex h-9 w-full appearance-none rounded-md border border-gray-300 bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-600 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+        className={`flex h-9 w-full appearance-none rounded-md border border-gray-300 bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-600 disabled:cursor-not-allowed disabled:opacity-50 ${error ? 'border-red-500' : ''} ${className}`}
         {...props}
       >
         <option value="">-- Seleccionar --</option>
