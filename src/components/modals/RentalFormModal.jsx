@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Icons } from '../Icons';
 import { MapPicker } from '../MapPicker';
@@ -47,6 +47,8 @@ export const RentalFormModal = ({
   const [observations, setObservations] = useState('');
   const [quotationNumber, setQuotationNumber] = useState('');
   const [timeError, setTimeError] = useState('');
+  const [showTimeErrorToast, setShowTimeErrorToast] = useState(false);
+  const startTimeRef = useRef(null);
   const [showDestinationMap, setShowDestinationMap] = useState(false);
   const [pickupLinkInput, setPickupLinkInput] = useState('');
   const [destinationLinkInput, setDestinationLinkInput] = useState('');
@@ -94,6 +96,13 @@ export const RentalFormModal = ({
   const closeAlert = () => {
     setAlertModal(prev => ({ ...prev, isOpen: false }));
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setTimeError('');
+      setShowTimeErrorToast(false);
+    }
+  }, [isOpen]);
 
   /**
    * Parsear coordenadas de una URL de Google Maps
@@ -164,8 +173,7 @@ export const RentalFormModal = ({
   // Validar que la hora fin no sea menor a la hora inicio
   const validateTimes = () => {
     if (!formData.startTime || !formData.endTime) {
-      setTimeError('');
-      return true;
+      return timeError === '';
     }
     
     const [startH, startM] = formData.startTime.split(':').map(Number);
@@ -176,11 +184,40 @@ export const RentalFormModal = ({
     
     if (endMinutes <= startMinutes) {
       setTimeError('La hora de fin debe ser mayor a la hora de inicio');
+      setShowTimeErrorToast(true);
       return false;
     }
     
     setTimeError('');
+    setShowTimeErrorToast(false);
     return true;
+  };
+
+  const handleTimeChange = (field, value) => {
+    const nextStart = field === 'startTime' ? value : formData.startTime;
+    const nextEnd = field === 'endTime' ? value : formData.endTime;
+
+    if (nextStart && nextEnd) {
+      const [startH, startM] = nextStart.split(':').map(Number);
+      const [endH, endM] = nextEnd.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+
+      if (endMinutes <= startMinutes) {
+        setTimeError('La hora de fin debe ser mayor a la hora de inicio');
+        setShowTimeErrorToast(true);
+        setFormData(prev => ({
+          ...prev,
+          startTime: '09:00',
+          endTime: '18:00'
+        }));
+        return;
+      }
+    }
+
+    setTimeError('');
+    setShowTimeErrorToast(false);
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   // Convertir tiempo a minutos para comparaciones
@@ -344,9 +381,35 @@ export const RentalFormModal = ({
     setQuotationNumber('');
   };
 
+  const disableReason = timeError ? timeError : '';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
+
+      {timeError && showTimeErrorToast && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-[92vw] max-w-lg rounded-xl border border-red-200 bg-red-50 px-6 py-4 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <span className="text-2xl">⚠️</span>
+              <div className="flex-1">
+                <p className="text-base font-bold text-red-700">Error de horario</p>
+                <p className="text-sm text-red-600">{timeError}. Se reinicio el horario.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimeErrorToast(false);
+                  startTimeRef.current?.focus();
+                }}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Revisar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <Card className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200 z-50">
         <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between z-10">
@@ -678,18 +741,15 @@ export const RentalFormModal = ({
                         <Input 
                             type="time" label="Inicio" 
                             value={formData.startTime} 
-                            onChange={e => {
-                              setFormData({...formData, startTime: e.target.value});
-                              validateTimes();
-                            }}
+                            onChange={e => handleTimeChange('startTime', e.target.value)}
+                            error={timeError ? 'Revisar horario' : ''}
+                          ref={startTimeRef}
                         />
                         <Input 
                             type="time" label="Fin" 
                             value={formData.endTime} 
-                            onChange={e => {
-                              setFormData({...formData, endTime: e.target.value});
-                              validateTimes();
-                            }}
+                            onChange={e => handleTimeChange('endTime', e.target.value)}
+                            error={timeError ? 'Revisar horario' : ''}
                         />
                     </div>
                     {timeError && (
@@ -742,6 +802,11 @@ export const RentalFormModal = ({
               </div>
 
               <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
+                {disableReason && (
+                  <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                    {disableReason}
+                  </div>
+                )}
                 <Button 
                   variant="primary" 
                   className="w-full py-6 text-base shadow-lg shadow-orange-200" 
