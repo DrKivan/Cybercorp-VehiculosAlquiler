@@ -48,6 +48,7 @@ export const RentalFormModal = ({
   const [quotationNumber, setQuotationNumber] = useState('');
   const [timeError, setTimeError] = useState('');
   const [showTimeErrorToast, setShowTimeErrorToast] = useState(false);
+  const [pricingError, setPricingError] = useState('');
   const startTimeRef = useRef(null);
   const [showDestinationMap, setShowDestinationMap] = useState(false);
   const [pickupLinkInput, setPickupLinkInput] = useState('');
@@ -101,6 +102,7 @@ export const RentalFormModal = ({
     if (!isOpen) {
       setTimeError('');
       setShowTimeErrorToast(false);
+      setPricingError('');
     }
   }, [isOpen]);
 
@@ -381,7 +383,11 @@ export const RentalFormModal = ({
     setQuotationNumber('');
   };
 
-  const disableReason = timeError ? timeError : '';
+  const isPricingInvalid = !formData.baseRate || formData.baseRate <= 0 || !formData.amount || formData.amount <= 0;
+
+const disableReason = timeError
+  ? timeError
+  : (isPricingInvalid ? 'Debe definir la tarifa base y el total calculado' : pricingError);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -766,11 +772,12 @@ export const RentalFormModal = ({
                         <input 
                             type="text"
                             inputMode="numeric"
-                            className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-600"
+                          className={`flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-600 ${pricingError ? 'border-red-500' : 'border-gray-300'}`}
                             value={formData.baseRate === 0 ? '' : formData.baseRate}
                             onChange={e => {
                                 const val = e.target.value.replace(/[^0-9.]/g, '');
-                                setFormData({...formData, baseRate: val === '' ? 0 : Number(val)});
+                            setFormData({...formData, baseRate: val === '' ? 0 : Number(val)});
+                            if (val !== '') setPricingError('');
                             }}
                         />
                     </div>
@@ -783,13 +790,17 @@ export const RentalFormModal = ({
                     <input 
                         type="text"
                         inputMode="numeric"
-                        className="w-full pl-10 pr-3 py-3 bg-orange-50 border border-orange-200 rounded font-bold text-2xl text-orange-700 focus:outline-none" 
+                        className={`w-full pl-10 pr-3 py-3 bg-orange-50 border rounded font-bold text-2xl text-orange-700 focus:outline-none ${pricingError ? 'border-red-500' : 'border-orange-200'}`}
                         value={formData.amount === 0 ? '' : formData.amount}
                         onChange={e => {
                             const val = e.target.value.replace(/[^0-9.]/g, '');
-                            setFormData({...formData, amount: val === '' ? 0 : Number(val)});
+                        setFormData({...formData, amount: val === '' ? 0 : Number(val)});
+                        if (val !== '') setPricingError('');
                         }}
                     />
+                  {pricingError && (
+                    <p className="text-xs text-red-600 font-semibold">{pricingError}</p>
+                  )}
                   </div>
                   <p className="text-xs text-gray-500 text-right italic">Se calculó automáticamente según horas</p>
                 </div>
@@ -812,6 +823,16 @@ export const RentalFormModal = ({
                   className="w-full py-6 text-base shadow-lg shadow-orange-200" 
                   onClick={() => {
                     if (!validateTimes()) {
+                      return;
+                    }
+
+                    if (!formData.baseRate || formData.baseRate <= 0 || !formData.amount || formData.amount <= 0) {
+                      setPricingError('Debe definir la tarifa base y el total calculado antes de guardar');
+                      showAlert({
+                        type: 'warning',
+                        title: '⚠️ Precio Requerido',
+                        message: 'Complete la tarifa base y asegure un total mayor a 0 para guardar.'
+                      });
                       return;
                     }
                     
@@ -863,7 +884,7 @@ export const RentalFormModal = ({
                     }
                     onSave();
                   }}
-                  disabled={timeError !== ''}
+                  disabled={timeError !== '' || isPricingInvalid}
                 >
                   {formData.id ? 'Guardar Cambios' : 'Generar Contrato'}
                 </Button>
